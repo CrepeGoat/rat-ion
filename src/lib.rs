@@ -1,4 +1,6 @@
 mod bitwise_array;
+mod nom_ext;
+mod sbs1;
 
 #[cfg(test)]
 mod tests {
