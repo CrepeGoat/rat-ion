@@ -5,7 +5,7 @@ use nom::{
     Needed, Slice, ToUsize,
 };
 
-fn take_rem<I, E: ParseError<(I, usize)>>(
+pub(crate) fn take_rem<I, E: ParseError<(I, usize)>>(
 ) -> impl Fn((I, usize)) -> IResult<(I, usize), (u8, usize), E>
 where
     I: Slice<RangeFrom<usize>> + InputIter<Item = u8> + InputLength,
@@ -17,7 +17,7 @@ where
     }
 }
 
-fn take_zeros<I, C, E: ParseError<(I, usize)>>(
+pub(crate) fn take_zeros<I, C, E: ParseError<(I, usize)>>(
     max_count: C,
 ) -> impl Fn((I, usize)) -> IResult<(I, usize), usize, E>
 where
@@ -53,4 +53,14 @@ where
 
         Ok(((input, (streak_len + bit_offset) % 8), streak_len))
     }
+}
+
+pub(crate) fn take_ones<I, C, E: ParseError<(I, usize)>>(
+    max_count: C,
+) -> impl Fn((I, usize)) -> IResult<(I, usize), usize, E>
+where
+    I: Slice<RangeFrom<usize>> + InputIter<Item = u8> + InputLength,
+    C: ToUsize,
+{
+    unimplemented!()
 }
