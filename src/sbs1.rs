@@ -6,6 +6,8 @@ use nom::{
 
 /*
 mod encode {
+    use super::*;
+
     fn fits_next(value: u64) -> bool {
         unimplemented!()
     }
@@ -17,6 +19,8 @@ mod encode {
 */
 
 mod decode {
+    use super::*;
+
     fn skip() -> bool {
         unimplemented!()
     }
@@ -24,7 +28,7 @@ mod decode {
     fn peek() -> u64 {
         unimplemented!()
     }
-    fn read() -> u64 {
+    fn read((stream, offset): (&[u8], usize)) -> IResult<(&[u8], usize), u64, (u64, usize)> {
         unimplemented!()
     }
 }
