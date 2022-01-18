@@ -1,3 +1,4 @@
+use crate::nom_ext::*;
 use nom::{bits::streaming::take, IResult, Needed};
 
 /*
@@ -16,7 +17,6 @@ mod encode {
 
 pub(crate) mod decode {
     use super::*;
-    use crate::sbs_utils::decode;
 
     pub(crate) fn skip() -> bool {
         unimplemented!()
@@ -25,9 +25,9 @@ pub(crate) mod decode {
     pub(crate) fn read(stream: (&[u8], usize)) -> IResult<(&[u8], usize), u64, (u64, Needed)> {
         let (stream, first_bit) = take(1_usize)(stream).map_err(unimplemented!())?;
         if first_bit == 0 {
-            Ok((stream, 1))
+            take(1).map(|x| x + 1)(stream).map_err(unimplemented!())
         } else {
-            decode::read.map(|x| x - 1)(stream)
+            decode::read(stream)
         }
     }
 }
