@@ -1,5 +1,6 @@
 mod bitwise_array;
 mod nom_ext;
+mod nom_mod;
 
 mod sbs1;
 mod sbs2;

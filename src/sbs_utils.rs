@@ -1,5 +1,8 @@
-use crate::nom_ext::*;
-use nom::{bits::streaming::take, sequence::terminated, IResult, Needed};
+use crate::nom_ext::take_ones;
+use crate::nom_mod::take_partial;
+use nom::{bits::streaming::take, sequence::terminated};
+
+use core::num::NonZeroUsize;
 
 /*
 pub(crate) mod encode {
@@ -22,19 +25,24 @@ pub(crate) mod decode {
         unimplemented!()
     }
 
-    pub(crate) fn read(stream: (&[u8], usize)) -> IResult<(&[u8], usize), u64, (u64, Needed)> {
+    pub(crate) fn read(
+        stream: (&[u8], usize),
+    ) -> Result<((&[u8], usize), u64), Option<(u64, NonZeroUsize)>> {
         // Get prefixing ones stream
         let (stream, ones_len) =
-            terminated(take_ones(usize::MAX), take(1_usize))(stream).map_err(unimplemented!())?;
+            terminated(take_ones(usize::MAX), take(1_usize))(stream).or(Err(None))?;
 
         // Get first literal digit bit -> determines result's MSBs
-        let (_, first_digit): (_, u8) = take(1_usize)(stream).map_err(unimplemented!())?;
+        let digits_len = ones_len + 2;
+        let (_, first_digit): (_, u8) =
+            take(1_usize)(stream).or(Err(Some((0, NonZeroUsize::new(digits_len).unwrap()))))?;
         let second_msb = 1 - first_digit;
-        let digits_len = ones_len + (first_digit as usize) + 1;
+        let digits_len = digits_len - (second_msb as usize);
+        let leading_bits = (2 + (second_msb as u64)) << digits_len;
 
-        let (stream, mut result): (_, u64) = take(digits_len)(stream).map_err(unimplemented!())?;
-        result += (2 + (second_msb as u64)) << digits_len;
-
-        Ok((stream, result))
+        match take_partial(digits_len)(stream) {
+            Ok((stream, result)) => Ok((stream, result + leading_bits)),
+            Err((partial, needed)) => Err((partial + leading_bits, needed)),
+        }
     }
 }
