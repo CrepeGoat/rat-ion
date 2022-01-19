@@ -7,7 +7,7 @@ type IResult<I, O, E> = Result<(I, O), E>;
 
 pub fn take_partial<'a, O>(
     count: usize,
-) -> impl Fn((&'a [u8], usize)) -> IResult<(&'a [u8], usize), O, Option<(O, NonZeroUsize)>>
+) -> impl Fn((&'a [u8], usize)) -> IResult<(&'a [u8], usize), O, (O, NonZeroUsize)>
 where
     O: From<u8> + AddAssign + Shl<usize, Output = O> + Shr<usize, Output = O>,
 {
@@ -16,13 +16,12 @@ where
     move |input: (&[u8], usize)| {
         nom_take_count(input).map_err(|e| {
             if let nom::Err::Incomplete(nom::Needed::Size(needed)) = e {
-                Some((
-                    nom_take::<_, _, _, ()>(count - needed.get())(input)
+                (
+                    nom_take::<_, O, _, ()>(count - needed.get())(input)
                         .expect("unreachable")
-                        .1
-                        .shl(needed.get()),
+                        .1,
                     needed,
-                ))
+                )
             } else {
                 unreachable!();
             }
