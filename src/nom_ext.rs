@@ -1,11 +1,35 @@
 use core::cmp::min;
-use core::ops::RangeFrom;
+use core::num::NonZeroUsize;
+use core::ops::{AddAssign, RangeFrom, Shl, Shr};
 use nom::{
     bits::streaming::take as take_bits, error::ParseError, Err, IResult, InputIter, InputLength,
     Needed, Slice, ToUsize,
 };
 
-pub(crate) fn take_rem<I, E: ParseError<(I, usize)>>(
+pub fn take_partial<I, O, C, E: ParseError<(I, usize)>>(
+    count: C,
+) -> impl Fn((I, usize)) -> IResult<(I, usize), (O, Option<NonZeroUsize>), E>
+where
+    I: Slice<RangeFrom<usize>> + InputIter<Item = u8> + InputLength + Copy,
+    C: ToUsize + std::ops::Sub<usize, Output = C> + Copy,
+    O: From<u8> + AddAssign + Shl<usize, Output = O> + Shr<usize, Output = O>,
+{
+    let take_count = take_bits(count);
+
+    move |input: (I, usize)| match take_count(input) {
+        Ok((input, result)) => Ok((input, (result, None))),
+        Err(nom::Err::Incomplete(nom::Needed::Size(needed))) => {
+            if let Ok((input, partial)) = take_bits::<_, O, _, E>(count - needed.get())(input) {
+                Ok((input, ((partial << needed.get()), Some(needed))))
+            } else {
+                unreachable!();
+            }
+        }
+        Err(e) => Err(e),
+    }
+}
+
+pub(crate) fn take_align<I, E: ParseError<(I, usize)>>(
 ) -> impl Fn((I, usize)) -> IResult<(I, usize), (u8, usize), E>
 where
     I: Slice<RangeFrom<usize>> + InputIter<Item = u8> + InputLength,

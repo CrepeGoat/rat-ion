@@ -1,5 +1,5 @@
 use crate::nom_ext::*;
-use nom::{bits::streaming::take, sequence::terminated, IResult, Needed};
+use nom::{bits::streaming::take, sequence::terminated, IResult};
 
 /*
 pub(crate) mod encode {
@@ -17,12 +17,15 @@ pub(crate) mod encode {
 
 pub(crate) mod decode {
     use super::*;
+    use core::num::NonZeroUsize;
 
     pub(crate) fn skip() -> bool {
         unimplemented!()
     }
 
-    pub(crate) fn read(stream: (&[u8], usize)) -> IResult<(&[u8], usize), u64, (u64, Needed)> {
+    pub(crate) fn read(
+        stream: (&[u8], usize),
+    ) -> IResult<(&[u8], usize), Option<(u64, NonZeroUsize)>, ()> {
         // Get prefixing ones stream
         let (stream, ones_len) =
             terminated(take_ones(usize::MAX), take(1_usize))(stream).map_err(unimplemented!())?;
