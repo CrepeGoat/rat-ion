@@ -36,8 +36,7 @@ pub(crate) mod decode {
         // Get first literal digit bit -> determines result's MSBs
         let digits_len = ones_len + 2;
         let (_, first_digit) = take::<_, u8, _, ()>(1_usize)(stream)
-            // if no more bits left, assume largest (why largest? to be conservative?)
-            .or(Err(Some((0, NonZeroUsize::new(digits_len).unwrap()))))?;
+            .map_err(|_| Some((0, NonZeroUsize::new(digits_len).unwrap())))?;
         let second_msb = 1 - first_digit;
         let digits_len = digits_len - (second_msb as usize);
         let leading_bits = (2 + (second_msb as u64)) << digits_len;

@@ -34,7 +34,7 @@ where
         let mut item = input
             .iter_elements()
             .next()
-            .ok_or_else(|| Err::Incomplete(Needed::new(1)))?;
+            .ok_or(Err::Incomplete(Needed::Unknown))?;
         item &= 0xFF >> bit_offset; // mask out first `bit_offset` bits
 
         streak_len += (item.leading_zeros() as usize) - bit_offset;
@@ -46,7 +46,7 @@ where
             item = input
                 .iter_elements()
                 .next()
-                .ok_or_else(|| Err::Incomplete(Needed::new(1)))?;
+                .ok_or(Err::Incomplete(Needed::Unknown))?;
             streak_len += item.leading_zeros() as usize;
         }
         streak_len = min(streak_len, max_count);
