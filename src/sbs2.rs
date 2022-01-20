@@ -1,5 +1,5 @@
-use crate::nom_ext::*;
-use nom::{bits::streaming::take, IResult, Needed};
+use core::num::{NonZeroU64, NonZeroUsize};
+use nom::bits::streaming::take;
 
 /*
 mod encode {
@@ -17,17 +17,25 @@ mod encode {
 
 pub(crate) mod decode {
     use super::*;
+    use crate::sbs_utils;
 
     pub(crate) fn skip() -> bool {
         unimplemented!()
     }
 
-    pub(crate) fn read(stream: (&[u8], usize)) -> IResult<(&[u8], usize), u64, (u64, Needed)> {
-        let (stream, first_bit) = take(1_usize)(stream).map_err(unimplemented!())?;
+    pub(crate) fn read(
+        stream: (&[u8], usize),
+    ) -> Result<((&[u8], usize), NonZeroU64), Option<(u64, NonZeroUsize)>> {
+        let (stream, first_bit) = take::<_, u8, _, ()>(1_usize)(stream).or(Err(None))?;
         if first_bit == 0 {
-            take(1).map(|x| x + 1)(stream).map_err(unimplemented!())
+            match take::<_, u64, _, ()>(1_usize)(stream) {
+                Ok((stream, x)) => Ok((stream, unsafe { NonZeroU64::new_unchecked(x + 1) })),
+                Err(_) => Err(Some((unimplemented!(), unsafe {
+                    NonZeroUsize::new_unchecked(1)
+                }))),
+            }
         } else {
-            decode::read(stream)
+            sbs_utils::decode::read(stream)
         }
     }
 }

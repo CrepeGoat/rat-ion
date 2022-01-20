@@ -4,6 +4,7 @@ mod nom_mod;
 
 mod sbs1;
 mod sbs2;
+mod sbs_main;
 mod sbs_utils;
 
 #[cfg(test)]

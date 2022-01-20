@@ -2,7 +2,7 @@ use crate::nom_ext::take_ones;
 use crate::nom_mod::take_partial;
 use nom::{bits::streaming::take, sequence::terminated};
 
-use core::num::NonZeroUsize;
+use core::num::{NonZeroU64, NonZeroUsize};
 
 /*
 pub(crate) mod encode {
@@ -27,7 +27,7 @@ pub(crate) mod decode {
 
     pub(crate) fn read(
         stream: (&[u8], usize),
-    ) -> Result<((&[u8], usize), u64), Option<(u64, NonZeroUsize)>> {
+    ) -> Result<((&[u8], usize), NonZeroU64), Option<(u64, NonZeroUsize)>> {
         // Get prefixing ones stream
         let (stream, ones_len) =
             terminated(take_ones(usize::MAX), take::<_, u8, _, ()>(1_usize))(stream)
@@ -43,7 +43,7 @@ pub(crate) mod decode {
         let leading_bits = (2 + (second_msb as u64)) << digits_len;
 
         match take_partial::<u64>(digits_len)(stream) {
-            Ok((stream, result)) => Ok((stream, result + leading_bits)),
+            Ok((stream, result)) => Ok((stream, NonZeroU64::new(result + leading_bits).unwrap())),
             Err((partial, needed)) => Err(Some((partial + leading_bits, needed))),
         }
     }
