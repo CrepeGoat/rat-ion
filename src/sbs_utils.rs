@@ -1,8 +1,10 @@
 use crate::nom_ext::take_ones;
 use crate::nom_mod::take_partial;
-use nom::{bits::streaming::take, sequence::terminated};
+use crate::utils::IncompleteInt;
+use nom::bits::streaming::take;
 
 use core::num::{NonZeroU64, NonZeroUsize};
+use core::ops::{RangeFrom, RangeInclusive};
 
 /*
 pub(crate) mod encode {
@@ -27,23 +29,38 @@ pub(crate) mod decode {
 
     pub(crate) fn read(
         stream: (&[u8], usize),
-    ) -> Result<((&[u8], usize), NonZeroU64), Option<(u64, NonZeroUsize)>> {
+    ) -> Result<((&[u8], usize), NonZeroU64), IncompleteInt<NonZeroU64>> {
         // Get prefixing ones stream
-        let (stream, ones_len) =
-            terminated(take_ones(usize::MAX), take::<_, u8, _, ()>(1_usize))(stream)
-                .or(Err(None))?;
+        let (stream, min_digits_len) = take_ones::<_, _, ()>(usize::MAX)(stream).unwrap();
+        let (stream, _) = take::<_, u8, _, ()>(1_usize)(stream).map_err(|_| {
+            IncompleteInt::Unbounded(RangeFrom {
+                start: NonZeroU64::new(3 << min_digits_len).unwrap(),
+            })
+        })?;
 
         // Get first literal digit bit -> determines result's MSBs
-        let digits_len = ones_len + 2;
-        let (_, first_digit) = take::<_, u8, _, ()>(1_usize)(stream)
-            .map_err(|_| Some((0, NonZeroUsize::new(digits_len).unwrap())))?;
-        let second_msb = 1 - first_digit;
-        let digits_len = digits_len - (second_msb as usize);
-        let leading_bits = (2 + (second_msb as u64)) << digits_len;
+        let (stream, first_digit) = take::<_, u8, _, ()>(1_usize)(stream).map_err(|_| {
+            IncompleteInt::Bounded(
+                RangeInclusive::new(
+                    NonZeroU64::new(3 << min_digits_len).unwrap(),
+                    NonZeroU64::new((6 << min_digits_len) - 1).unwrap(),
+                ),
+                NonZeroUsize::new(min_digits_len + 2).unwrap(),
+            )
+        })?;
+
+        let digits_len = min_digits_len + (first_digit as usize);
+        let leading_bits = (3 - (first_digit as u64)) << digits_len;
 
         match take_partial::<u64>(digits_len)(stream) {
             Ok((stream, result)) => Ok((stream, NonZeroU64::new(result + leading_bits).unwrap())),
-            Err((partial, needed)) => Err(Some((partial + leading_bits, needed))),
+            Err((partial, needed)) => Err(IncompleteInt::Bounded(
+                RangeInclusive::new(
+                    NonZeroU64::new(leading_bits).unwrap(),
+                    NonZeroU64::new(leading_bits + (1 << digits_len) - 1).unwrap(),
+                ),
+                NonZeroUsize::new(digits_len).unwrap(),
+            )),
         }
     }
 }
