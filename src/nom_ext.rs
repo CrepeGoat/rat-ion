@@ -26,32 +26,21 @@ where
 {
     let max_count = max_count.to_usize();
     move |(mut input, bit_offset): (I, usize)| {
-        if max_count == 0 {
-            return Ok(((input, bit_offset), 0usize));
+        let mut iter_bytes = input.iter_elements().enumerate();
+        let byte_1 = iter_bytes.next();
+        if let Some((_, byte_1)) = byte_1 {
+            let mut iter_bytes = core::iter::once(
+                (0, byte_1 & (0xFF >> bit_offset)), // mask out first `bit_offset` bits
+            )
+            .chain(iter_bytes);
+
+            for (i, byte_i) in iter_bytes {
+                todo!()
+            }
+            todo!()
+        } else {
+            Ok(((input, bit_offset), 0_usize))
         }
-
-        let mut streak_len: usize = 0;
-        let mut item = input
-            .iter_elements()
-            .next()
-            .ok_or(Err::Incomplete(Needed::Unknown))?;
-        item &= 0xFF >> bit_offset; // mask out first `bit_offset` bits
-
-        streak_len += (item.leading_zeros() as usize) - bit_offset;
-        while item.leading_zeros() == 8 && streak_len <= max_count {
-            input = input.slice(1..);
-            if streak_len == max_count {
-                break;
-            };
-            item = input
-                .iter_elements()
-                .next()
-                .ok_or(Err::Incomplete(Needed::Unknown))?;
-            streak_len += item.leading_zeros() as usize;
-        }
-        streak_len = min(streak_len, max_count);
-
-        Ok(((input, (streak_len + bit_offset) % 8), streak_len))
     }
 }
 
