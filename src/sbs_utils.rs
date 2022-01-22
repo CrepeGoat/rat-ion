@@ -33,15 +33,13 @@ pub(crate) mod decode {
         // Get prefixing ones stream
         let (stream, min_digits_len) = take_ones::<_, _, ()>(usize::MAX)(stream).unwrap();
         let (stream, _) = take::<_, u8, _, ()>(1_usize)(stream).map_err(|_| {
-            IncompleteInt::Unbounded(RangeFrom {
-                start: NonZeroU64::new(3 << min_digits_len).unwrap(),
-            })
+            IncompleteInt::new_unbounded(NonZeroU64::new(3 << min_digits_len).unwrap())
         })?;
 
         // Get first literal digit bit -> determines result's MSBs
         let (stream, first_digit) = take::<_, u8, _, ()>(1_usize)(stream).map_err(|_| {
-            IncompleteInt::Bounded(
-                RangeInclusive::new(
+            IncompleteInt::new_bounded(
+                (
                     NonZeroU64::new(3 << min_digits_len).unwrap(),
                     NonZeroU64::new((6 << min_digits_len) - 1).unwrap(),
                 ),
@@ -54,8 +52,8 @@ pub(crate) mod decode {
 
         match take_partial::<u64>(digits_len)(stream) {
             Ok((stream, result)) => Ok((stream, NonZeroU64::new(result + leading_bits).unwrap())),
-            Err((partial, needed)) => Err(IncompleteInt::Bounded(
-                RangeInclusive::new(
+            Err((partial, needed)) => Err(IncompleteInt::new_bounded(
+                (
                     NonZeroU64::new(leading_bits).unwrap(),
                     NonZeroU64::new(leading_bits + (1 << digits_len) - 1).unwrap(),
                 ),

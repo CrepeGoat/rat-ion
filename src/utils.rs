@@ -1,6 +1,8 @@
 use core::num::NonZeroUsize;
 use core::ops::{RangeBounds, RangeFrom, RangeInclusive};
 
+pub type InputStream<'a> = (&'a [u8], usize);
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IncompleteInt<T> {
     Unbounded(RangeFrom<T>),
@@ -19,5 +21,15 @@ impl<T> RangeBounds<T> for IncompleteInt<T> {
             IncompleteInt::Unbounded(range) => range.end_bound(),
             IncompleteInt::Bounded(range, _) => range.end_bound(),
         }
+    }
+}
+
+impl<T> IncompleteInt<T> {
+    pub fn new_unbounded(start: T) -> Self {
+        Self::Unbounded(RangeFrom { start })
+    }
+
+    pub fn new_bounded(range: (T, T), bits_needed: NonZeroUsize) -> Self {
+        Self::Bounded(RangeInclusive::new(range.0, range.1), bits_needed)
     }
 }

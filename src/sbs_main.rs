@@ -1,6 +1,6 @@
+use crate::utils::{IncompleteInt, InputStream};
 use crate::{sbs1, sbs2};
 use core::num::NonZeroU64;
-use core::num::NonZeroUsize;
 
 /*
 mod encode {
@@ -61,7 +61,7 @@ impl Coder {
     pub fn read<'a>(
         &mut self,
         stream: (&'a [u8], usize),
-    ) -> Result<((&'a [u8], usize), NonZeroU64), Option<(u64, NonZeroUsize)>> {
+    ) -> Result<(InputStream<'a>, NonZeroU64), IncompleteInt<NonZeroU64>> {
         let result = match self.0.which() {
             SbsMarker::Mode1 => sbs1::decode::read(stream),
             SbsMarker::Mode2 => sbs2::decode::read(stream),
