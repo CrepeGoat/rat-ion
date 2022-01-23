@@ -1,6 +1,6 @@
 use crate::nom_ext::take_ones;
 use crate::nom_mod::take_partial;
-use crate::utils::IncompleteInt;
+use crate::utils::{IncompleteInt, InputStream};
 use nom::bits::streaming::take;
 
 use core::num::{NonZeroU64, NonZeroUsize};
@@ -29,7 +29,7 @@ pub(crate) mod decode {
 
     pub(crate) fn read(
         stream: (&[u8], usize),
-    ) -> Result<((&[u8], usize), NonZeroU64), IncompleteInt<NonZeroU64>> {
+    ) -> Result<(InputStream, NonZeroU64), IncompleteInt<NonZeroU64>> {
         // Get prefixing ones stream
         let (stream, min_digits_len) = take_ones::<_, _, ()>(usize::MAX)(stream).unwrap();
         let (stream, _) = take::<_, u8, _, ()>(1_usize)(stream).map_err(|_| {
@@ -54,8 +54,11 @@ pub(crate) mod decode {
             Ok((stream, result)) => Ok((stream, NonZeroU64::new(result + leading_bits).unwrap())),
             Err((partial, needed)) => Err(IncompleteInt::new_bounded(
                 (
-                    NonZeroU64::new(leading_bits).unwrap(),
-                    NonZeroU64::new(leading_bits + (1 << digits_len) - 1).unwrap(),
+                    NonZeroU64::new(leading_bits + (partial << needed.get())).unwrap(),
+                    NonZeroU64::new(
+                        leading_bits + (partial << needed.get()) + (1 << needed.get()) - 1,
+                    )
+                    .unwrap(),
                 ),
                 NonZeroUsize::new(digits_len).unwrap(),
             )),
