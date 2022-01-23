@@ -10,3 +10,4 @@ nom = "7.1.0"
 
 [dev-dependencies]
 proptest = "1.0.0"
+rstest = "0.6.4"

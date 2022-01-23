@@ -44,3 +44,32 @@ pub(crate) mod decode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::*;
+
+    #[rstest(stream, expt_result,
+        case((&[0b00111111][..], 0), Ok(((&[0b00111111][..], 2), NonZeroU64::new(1).unwrap()))),
+        case((&[0b01111111][..], 0), Ok(((&[0b01111111][..], 2), NonZeroU64::new(2).unwrap()))),
+        case((&[0b10011111][..], 0), Ok(((&[0b10011111][..], 3), NonZeroU64::new(3).unwrap()))),
+        case((&[0b10101111][..], 0), Ok(((&[0b10101111][..], 4), NonZeroU64::new(4).unwrap()))),
+        case((&[0b10111111][..], 0), Ok(((&[0b10111111][..], 4), NonZeroU64::new(5).unwrap()))),
+        case((&[0b11000111][..], 0), Ok(((&[0b11000111][..], 5), NonZeroU64::new(6).unwrap()))),
+        case((&[0b11001111][..], 0), Ok(((&[0b11001111][..], 5), NonZeroU64::new(7).unwrap()))),
+        case((&[0b11010011][..], 0), Ok(((&[0b11010011][..], 6), NonZeroU64::new(8).unwrap()))),
+        case((&[0b11011111][..], 0), Ok(((&[0b11011111][..], 6), NonZeroU64::new(11).unwrap()))),
+        case((&[0b11100001][..], 0), Ok(((&[0b11100001][..], 7), NonZeroU64::new(12).unwrap()))),
+        case((&[0b11100111][..], 0), Ok(((&[0b11100111][..], 7), NonZeroU64::new(15).unwrap()))),
+        case((&[0b11101000][..], 0), Ok(((&[][..], 0), NonZeroU64::new(16).unwrap()))),
+        case((&[0b11101111][..], 0), Ok(((&[][..], 0), NonZeroU64::new(23).unwrap()))),
+    )]
+    fn test_read(
+        stream: InputStream,
+        expt_result: Result<(InputStream, NonZeroU64), IncompleteInt<NonZeroU64>>,
+    ) {
+        let calc_result = decode::read(stream);
+        assert_eq!(calc_result, expt_result);
+    }
+}
