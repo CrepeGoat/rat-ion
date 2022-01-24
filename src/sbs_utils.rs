@@ -5,19 +5,13 @@ use nom::bits::streaming::take;
 
 use core::num::{NonZeroU64, NonZeroUsize};
 
-/*
 pub(crate) mod encode {
     use super::*;
-
-    fn fits_next(value: u64) -> bool {
-        unimplemented!()
-    }
 
     fn write(value: u64) {
         unimplemented!()
     }
 }
-*/
 
 pub(crate) mod decode {
     use super::*;
