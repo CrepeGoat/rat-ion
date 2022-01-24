@@ -54,10 +54,6 @@ impl RhoRegion {
 pub struct Coder(RhoRegion);
 
 impl Coder {
-    pub fn skip(&mut self) -> bool {
-        unimplemented!()
-    }
-
     pub fn read<'a>(
         &mut self,
         stream: (&'a [u8], usize),

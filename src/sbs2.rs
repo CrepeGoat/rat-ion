@@ -20,10 +20,6 @@ mod encode {
 pub(crate) mod decode {
     use super::*;
 
-    pub(crate) fn skip() -> bool {
-        unimplemented!()
-    }
-
     pub(crate) fn read(
         stream: (&[u8], usize),
     ) -> Result<(InputStream, NonZeroU64), IncompleteInt<NonZeroU64>> {

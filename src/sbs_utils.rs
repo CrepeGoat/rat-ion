@@ -4,7 +4,6 @@ use crate::utils::{IncompleteInt, InputStream};
 use nom::bits::streaming::take;
 
 use core::num::{NonZeroU64, NonZeroUsize};
-use core::ops::{RangeFrom, RangeInclusive};
 
 /*
 pub(crate) mod encode {
@@ -22,10 +21,6 @@ pub(crate) mod encode {
 
 pub(crate) mod decode {
     use super::*;
-
-    pub(crate) fn skip() -> bool {
-        unimplemented!()
-    }
 
     pub(crate) fn read(
         stream: (&[u8], usize),
