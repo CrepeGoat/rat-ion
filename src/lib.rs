@@ -1,3 +1,5 @@
+mod bitwise_array;
+
 #[cfg(test)]
 mod tests {
     #[test]
