@@ -5,6 +5,38 @@
 use core::borrow::Borrow;
 use core::ops::{BitAnd, BitOr, BitXor};
 
+trait FoolProofShl {
+    fn fp_shl(self, shift: i32) -> Self;
+}
+
+trait FoolProofShr {
+    fn fp_shr(self, shift: i32) -> Self;
+}
+
+impl FoolProofShl for u8 {
+    #[inline]
+    fn fp_shl(self, shift: i32) -> Self {
+        use core::cmp::Ordering::*;
+        match shift.cmp(&0) {
+            Greater => self.checked_shl(shift as u32).unwrap_or_default(),
+            Less => self.checked_shr(shift as u32).unwrap_or_default(),
+            Equal => self,
+        }
+    }
+}
+
+impl FoolProofShr for u8 {
+    #[inline]
+    fn fp_shr(self, shift: i32) -> Self {
+        use core::cmp::Ordering::*;
+        match shift.cmp(&0) {
+            Greater => self.checked_shr(shift as u32).unwrap_or_default(),
+            Less => self.checked_shl(shift as u32).unwrap_or_default(),
+            Equal => self,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 struct BitwiseArray<U, const SHIFT_LEFT: bool> {
     data: U,
@@ -28,8 +60,7 @@ impl<U, const SHIFT_LEFT: bool> BitwiseArray<U, SHIFT_LEFT> {
     }
 
     fn mask(&self) -> u8 {
-        u8::MAX.checked_shl(self.right_offset).unwrap_or_default()
-            & u8::MAX.checked_shr(self.left_offset).unwrap_or_default()
+        u8::MAX.fp_shl(self.right_offset as i32) & u8::MAX.fp_shr(self.left_offset as i32)
     }
 
     fn masked(&self) -> u8
@@ -58,10 +89,7 @@ impl<U, const SHIFT_LEFT: bool> BitwiseArray<U, SHIFT_LEFT> {
 
 impl<U: Borrow<u8>, const SHIFT_LEFT: bool> From<BitwiseArray<U, SHIFT_LEFT>> for u8 {
     fn from(value: BitwiseArray<U, SHIFT_LEFT>) -> Self {
-        value
-            .masked()
-            .checked_shr(value.right_offset)
-            .unwrap_or_default()
+        value.masked().fp_shr(value.right_offset as i32)
     }
 }
 
@@ -74,27 +102,14 @@ impl<U1: Borrow<u8>, U2: Borrow<u8>, const SHIFT_LEFT_1: bool, const SHIFT_LEFT_
         let _self = self.reduce_len(other.len());
         let other = other.reduce_len(_self.len());
 
-        if _self.left_offset < other.left_offset {
-            Self::Output::new(
-                _self.masked()
-                    & other
-                        .masked()
-                        .checked_shl(other.left_offset - _self.left_offset)
-                        .unwrap_or_default(),
-                _self.left_offset,
-                _self.left_offset,
-            )
-        } else {
-            Self::Output {
-                data: _self.masked()
-                    & other
-                        .masked()
-                        .checked_shr(other.right_offset - _self.right_offset)
-                        .unwrap_or_default(),
-                left_offset: _self.left_offset,
-                right_offset: _self.left_offset,
-            }
-        }
+        Self::Output::new(
+            _self.masked()
+                & other
+                    .masked()
+                    .fp_shl((other.left_offset as i32) - (_self.left_offset as i32)),
+            _self.left_offset,
+            _self.right_offset,
+        )
     }
 }
 
@@ -107,27 +122,14 @@ impl<U1: Borrow<u8>, U2: Borrow<u8>, const SHIFT_LEFT_1: bool, const SHIFT_LEFT_
         let _self = self.reduce_len(other.len());
         let other = other.reduce_len(_self.len());
 
-        if _self.left_offset < other.left_offset {
-            Self::Output {
-                data: _self.masked()
-                    | other
-                        .masked()
-                        .checked_shl(other.left_offset - _self.left_offset)
-                        .unwrap_or_default(),
-                left_offset: _self.left_offset,
-                right_offset: _self.left_offset,
-            }
-        } else {
-            Self::Output {
-                data: _self.masked()
-                    | other
-                        .masked()
-                        .checked_shr(other.right_offset - _self.right_offset)
-                        .unwrap_or_default(),
-                left_offset: _self.left_offset,
-                right_offset: _self.left_offset,
-            }
-        }
+        Self::Output::new(
+            _self.masked()
+                | other
+                    .masked()
+                    .fp_shl((other.left_offset as i32) - (_self.left_offset as i32)),
+            _self.left_offset,
+            _self.right_offset,
+        )
     }
 }
 
@@ -140,26 +142,13 @@ impl<U1: Borrow<u8>, U2: Borrow<u8>, const SHIFT_LEFT_1: bool, const SHIFT_LEFT_
         let _self = self.reduce_len(other.len());
         let other = other.reduce_len(_self.len());
 
-        if _self.left_offset < other.left_offset {
-            Self::Output {
-                data: _self.masked()
-                    ^ other
-                        .masked()
-                        .checked_shl(other.left_offset - _self.left_offset)
-                        .unwrap_or_default(),
-                left_offset: _self.left_offset,
-                right_offset: _self.left_offset,
-            }
-        } else {
-            Self::Output {
-                data: _self.masked()
-                    ^ other
-                        .masked()
-                        .checked_shr(other.right_offset - _self.right_offset)
-                        .unwrap_or_default(),
-                left_offset: _self.left_offset,
-                right_offset: _self.left_offset,
-            }
-        }
+        Self::Output::new(
+            _self.masked()
+                ^ other
+                    .masked()
+                    .fp_shl((other.left_offset as i32) - (_self.left_offset as i32)),
+            _self.left_offset,
+            _self.right_offset,
+        )
     }
 }
