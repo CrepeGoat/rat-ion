@@ -2,8 +2,8 @@
 //
 //struct BitwiseArray<T: PrimInt + Unsigned, U: AsRef<T>> {
 
-use core::borrow::Borrow;
-use core::ops::{BitAnd, BitOr, BitXor};
+use core::borrow::{Borrow, BorrowMut};
+use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign};
 
 trait FoolProofShl {
     fn fp_shl(self, shift: u32) -> Self;
@@ -113,6 +113,26 @@ impl<U, const SHIFT_LEFT: bool> BitwiseArray<U, SHIFT_LEFT> {
             self.right_margin,
         )
     }
+
+    fn assign<F: FnOnce(u8, u8) -> u8, U2: Borrow<u8>, const SHIFT_LEFT_2: bool>(
+        &mut self,
+        mut other: BitwiseArray<U2, SHIFT_LEFT_2>,
+        func: F,
+    ) where
+        U: BorrowMut<u8>,
+    {
+        self.reduce_len(other.len());
+        other.reduce_len(self.len());
+
+        *self.data.borrow_mut() = (*self.data.borrow() & !self.mask())
+            & (func(
+                *self.data.borrow(),
+                other
+                    .data
+                    .borrow()
+                    .fp_ishl((other.left_margin as i32) - (self.left_margin as i32)),
+            ) & self.mask())
+    }
 }
 
 impl<U: Borrow<u8>, const SHIFT_LEFT: bool> From<&BitwiseArray<U, SHIFT_LEFT>> for u8 {
@@ -158,6 +178,30 @@ impl<U1: Borrow<u8>, U2: Borrow<u8>, const SHIFT_LEFT_1: bool, const SHIFT_LEFT_
 
     fn bitxor(self, other: BitwiseArray<U2, SHIFT_LEFT_2>) -> Self::Output {
         self.apply(other, BitXor::bitxor)
+    }
+}
+
+impl<U1: BorrowMut<u8>, U2: Borrow<u8>, const SHIFT_LEFT_1: bool, const SHIFT_LEFT_2: bool>
+    BitAndAssign<BitwiseArray<U2, SHIFT_LEFT_2>> for BitwiseArray<U1, SHIFT_LEFT_1>
+{
+    fn bitand_assign(&mut self, other: BitwiseArray<U2, SHIFT_LEFT_2>) {
+        self.assign(other, BitAnd::bitand)
+    }
+}
+
+impl<U1: BorrowMut<u8>, U2: Borrow<u8>, const SHIFT_LEFT_1: bool, const SHIFT_LEFT_2: bool>
+    BitOrAssign<BitwiseArray<U2, SHIFT_LEFT_2>> for BitwiseArray<U1, SHIFT_LEFT_1>
+{
+    fn bitor_assign(&mut self, other: BitwiseArray<U2, SHIFT_LEFT_2>) {
+        self.assign(other, BitOr::bitor)
+    }
+}
+
+impl<U1: BorrowMut<u8>, U2: Borrow<u8>, const SHIFT_LEFT_1: bool, const SHIFT_LEFT_2: bool>
+    BitXorAssign<BitwiseArray<U2, SHIFT_LEFT_2>> for BitwiseArray<U1, SHIFT_LEFT_1>
+{
+    fn bitxor_assign(&mut self, other: BitwiseArray<U2, SHIFT_LEFT_2>) {
+        self.assign(other, BitXor::bitxor)
     }
 }
 
