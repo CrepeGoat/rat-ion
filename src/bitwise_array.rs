@@ -6,16 +6,23 @@ use core::borrow::Borrow;
 use core::ops::{BitAnd, BitOr, BitXor};
 
 trait FoolProofShl {
-    fn fp_shl(self, shift: i32) -> Self;
+    fn fp_shl(self, shift: u32) -> Self;
+    fn fp_ishl(self, shift: i32) -> Self;
 }
 
 trait FoolProofShr {
-    fn fp_shr(self, shift: i32) -> Self;
+    fn fp_shr(self, shift: u32) -> Self;
+    fn fp_ishr(self, shift: i32) -> Self;
 }
 
 impl FoolProofShl for u8 {
     #[inline]
-    fn fp_shl(self, shift: i32) -> Self {
+    fn fp_shl(self, shift: u32) -> Self {
+        self.checked_shl(shift).unwrap_or_default()
+    }
+
+    #[inline]
+    fn fp_ishl(self, shift: i32) -> Self {
         use core::cmp::Ordering::*;
         match shift.cmp(&0) {
             Greater => self.checked_shl(shift as u32).unwrap_or_default(),
@@ -27,7 +34,12 @@ impl FoolProofShl for u8 {
 
 impl FoolProofShr for u8 {
     #[inline]
-    fn fp_shr(self, shift: i32) -> Self {
+    fn fp_shr(self, shift: u32) -> Self {
+        self.checked_shr(shift).unwrap_or_default()
+    }
+
+    #[inline]
+    fn fp_ishr(self, shift: i32) -> Self {
         use core::cmp::Ordering::*;
         match shift.cmp(&0) {
             Greater => self.checked_shr(shift as u32).unwrap_or_default(),
@@ -60,7 +72,7 @@ impl<U, const SHIFT_LEFT: bool> BitwiseArray<U, SHIFT_LEFT> {
     }
 
     fn mask(&self) -> u8 {
-        u8::MAX.fp_shl(self.right_offset as i32) & u8::MAX.fp_shr(self.left_offset as i32)
+        u8::MAX.fp_shl(self.right_offset) & u8::MAX.fp_shr(self.left_offset)
     }
 
     fn masked(&self) -> u8
@@ -89,7 +101,7 @@ impl<U, const SHIFT_LEFT: bool> BitwiseArray<U, SHIFT_LEFT> {
 
 impl<U: Borrow<u8>, const SHIFT_LEFT: bool> From<&BitwiseArray<U, SHIFT_LEFT>> for u8 {
     fn from(value: &BitwiseArray<U, SHIFT_LEFT>) -> Self {
-        value.masked().fp_shr(value.right_offset as i32)
+        value.masked().fp_shr(value.right_offset)
     }
 }
 
@@ -116,7 +128,7 @@ impl<U1: Borrow<u8>, U2: Borrow<u8>, const SHIFT_LEFT_1: bool, const SHIFT_LEFT_
             _self.masked()
                 & other
                     .masked()
-                    .fp_shl((other.left_offset as i32) - (_self.left_offset as i32)),
+                    .fp_ishl((other.left_offset as i32) - (_self.left_offset as i32)),
             _self.left_offset,
             _self.right_offset,
         )
@@ -136,7 +148,7 @@ impl<U1: Borrow<u8>, U2: Borrow<u8>, const SHIFT_LEFT_1: bool, const SHIFT_LEFT_
             _self.masked()
                 | other
                     .masked()
-                    .fp_shl((other.left_offset as i32) - (_self.left_offset as i32)),
+                    .fp_ishl((other.left_offset as i32) - (_self.left_offset as i32)),
             _self.left_offset,
             _self.right_offset,
         )
@@ -156,7 +168,7 @@ impl<U1: Borrow<u8>, U2: Borrow<u8>, const SHIFT_LEFT_1: bool, const SHIFT_LEFT_
             _self.masked()
                 ^ other
                     .masked()
-                    .fp_shl((other.left_offset as i32) - (_self.left_offset as i32)),
+                    .fp_ishl((other.left_offset as i32) - (_self.left_offset as i32)),
             _self.left_offset,
             _self.right_offset,
         )
