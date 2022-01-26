@@ -5,20 +5,22 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign};
 
-trait FoolProofShl {
+trait FoolProofShift {
     fn fp_shl(self, shift: u32) -> Self;
-    fn fp_ishl(self, shift: i32) -> Self;
-}
-
-trait FoolProofShr {
     fn fp_shr(self, shift: u32) -> Self;
+    fn fp_ishl(self, shift: i32) -> Self;
     fn fp_ishr(self, shift: i32) -> Self;
 }
 
-impl FoolProofShl for u8 {
+impl FoolProofShift for u8 {
     #[inline]
     fn fp_shl(self, shift: u32) -> Self {
         self.checked_shl(shift).unwrap_or_default()
+    }
+
+    #[inline]
+    fn fp_shr(self, shift: u32) -> Self {
+        self.checked_shr(shift).unwrap_or_default()
     }
 
     #[inline]
@@ -29,13 +31,6 @@ impl FoolProofShl for u8 {
             Less => self.checked_shr(shift as u32).unwrap_or_default(),
             Equal => self,
         }
-    }
-}
-
-impl FoolProofShr for u8 {
-    #[inline]
-    fn fp_shr(self, shift: u32) -> Self {
-        self.checked_shr(shift).unwrap_or_default()
     }
 
     #[inline]
