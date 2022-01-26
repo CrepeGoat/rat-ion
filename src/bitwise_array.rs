@@ -90,6 +90,29 @@ impl<U, const SHIFT_LEFT: bool> BitwiseArray<U, SHIFT_LEFT> {
             self.left_margin += self.len() - len;
         }
     }
+
+    fn apply<F: FnOnce(u8, u8) -> u8, U2: Borrow<u8>, const SHIFT_LEFT_2: bool>(
+        mut self,
+        mut other: BitwiseArray<U2, SHIFT_LEFT_2>,
+        func: F,
+    ) -> BitwiseArray<u8, true>
+    where
+        U: Borrow<u8>,
+    {
+        self.reduce_len(other.len());
+        other.reduce_len(self.len());
+
+        BitwiseArray::<u8, true>::new(
+            func(
+                self.masked(),
+                other
+                    .masked()
+                    .fp_ishl((other.left_margin as i32) - (self.left_margin as i32)),
+            ),
+            self.left_margin,
+            self.right_margin,
+        )
+    }
 }
 
 impl<U: Borrow<u8>, const SHIFT_LEFT: bool> From<&BitwiseArray<U, SHIFT_LEFT>> for u8 {
@@ -113,18 +136,8 @@ impl<U1: Borrow<u8>, U2: Borrow<u8>, const SHIFT_LEFT_1: bool, const SHIFT_LEFT_
 {
     type Output = BitwiseArray<u8, true>;
 
-    fn bitand(mut self, mut other: BitwiseArray<U2, SHIFT_LEFT_2>) -> Self::Output {
-        self.reduce_len(other.len());
-        other.reduce_len(self.len());
-
-        Self::Output::new(
-            self.masked()
-                & other
-                    .masked()
-                    .fp_ishl((other.left_margin as i32) - (self.left_margin as i32)),
-            self.left_margin,
-            self.right_margin,
-        )
+    fn bitand(self, other: BitwiseArray<U2, SHIFT_LEFT_2>) -> Self::Output {
+        self.apply(other, BitAnd::bitand)
     }
 }
 
@@ -133,18 +146,8 @@ impl<U1: Borrow<u8>, U2: Borrow<u8>, const SHIFT_LEFT_1: bool, const SHIFT_LEFT_
 {
     type Output = BitwiseArray<u8, true>;
 
-    fn bitor(mut self, mut other: BitwiseArray<U2, SHIFT_LEFT_2>) -> Self::Output {
-        self.reduce_len(other.len());
-        other.reduce_len(self.len());
-
-        Self::Output::new(
-            self.masked()
-                ^ other
-                    .masked()
-                    .fp_ishl((other.left_margin as i32) - (self.left_margin as i32)),
-            self.left_margin,
-            self.right_margin,
-        )
+    fn bitor(self, other: BitwiseArray<U2, SHIFT_LEFT_2>) -> Self::Output {
+        self.apply(other, BitOr::bitor)
     }
 }
 
@@ -153,18 +156,8 @@ impl<U1: Borrow<u8>, U2: Borrow<u8>, const SHIFT_LEFT_1: bool, const SHIFT_LEFT_
 {
     type Output = BitwiseArray<u8, true>;
 
-    fn bitxor(mut self, mut other: BitwiseArray<U2, SHIFT_LEFT_2>) -> Self::Output {
-        self.reduce_len(other.len());
-        other.reduce_len(self.len());
-
-        Self::Output::new(
-            self.masked()
-                ^ other
-                    .masked()
-                    .fp_ishl((other.left_margin as i32) - (self.left_margin as i32)),
-            self.left_margin,
-            self.right_margin,
-        )
+    fn bitxor(self, other: BitwiseArray<U2, SHIFT_LEFT_2>) -> Self::Output {
+        self.apply(other, BitXor::bitxor)
     }
 }
 
