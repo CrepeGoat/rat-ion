@@ -170,6 +170,19 @@ mod tests {
 
     proptest! {
         #[test]
+        fn test_bitwise_masked(left_offset in 0_u32..=4, right_offset in 0_u32..=4) {
+            let bits = BitwiseArray::<_, false>::new(0xFF, left_offset, right_offset);
+            let calc_result = bits.masked();
+
+            println!("masked bits = {:?}", calc_result);
+            assert_eq!(calc_result.count_ones(), 8 - left_offset - right_offset);
+            if calc_result.count_ones() != 0 {
+                assert_eq!(calc_result.leading_zeros(), left_offset);
+                assert_eq!(calc_result.trailing_zeros(), right_offset);
+            }
+        }
+
+        #[test]
         fn test_bitwise_array_eq(value in 0x00_u8..0x10, shift1 in 0_u32..=4, shift2 in 0_u32..=4) {
             let bits1 = BitwiseArray::<_, false>::new(value << shift1, 4 - shift1, shift1);
             let bits2 = BitwiseArray::<_, true>::new(value << shift2, 4 - shift2, shift2);
