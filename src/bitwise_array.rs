@@ -87,11 +87,21 @@ impl<U, const SHIFT_LEFT: bool> BitwiseArray<U, SHIFT_LEFT> {
     }
 }
 
-impl<U: Borrow<u8>, const SHIFT_LEFT: bool> From<BitwiseArray<U, SHIFT_LEFT>> for u8 {
-    fn from(value: BitwiseArray<U, SHIFT_LEFT>) -> Self {
+impl<U: Borrow<u8>, const SHIFT_LEFT: bool> From<&BitwiseArray<U, SHIFT_LEFT>> for u8 {
+    fn from(value: &BitwiseArray<U, SHIFT_LEFT>) -> Self {
         value.masked().fp_shr(value.right_offset as i32)
     }
 }
+
+impl<U1: Borrow<u8>, U2: Borrow<u8>, const SHIFT_LEFT_1: bool, const SHIFT_LEFT_2: bool>
+    PartialEq<BitwiseArray<U2, SHIFT_LEFT_2>> for BitwiseArray<U1, SHIFT_LEFT_1>
+{
+    fn eq(&self, other: &BitwiseArray<U2, SHIFT_LEFT_2>) -> bool {
+        (self.len() == other.len()) & u8::from(self).eq(&u8::from(other))
+    }
+}
+
+impl<U: Borrow<u8>, const SHIFT_LEFT: bool> Eq for BitwiseArray<U, SHIFT_LEFT> {}
 
 impl<U1: Borrow<u8>, U2: Borrow<u8>, const SHIFT_LEFT_1: bool, const SHIFT_LEFT_2: bool>
     BitAnd<BitwiseArray<U2, SHIFT_LEFT_2>> for BitwiseArray<U1, SHIFT_LEFT_1>
@@ -150,5 +160,21 @@ impl<U1: Borrow<u8>, U2: Borrow<u8>, const SHIFT_LEFT_1: bool, const SHIFT_LEFT_
             _self.left_offset,
             _self.right_offset,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::*;
+
+    proptest! {
+        #[test]
+        fn test_bitwise_array_eq(value in 0x00_u8..0x10, shift1 in 0_u32..=4, shift2 in 0_u32..=4) {
+            let bits1 = BitwiseArray::<_, false>::new(value << shift1, 4 - shift1, shift1);
+            let bits2 = BitwiseArray::<_, true>::new(value << shift2, 4 - shift2, shift2);
+
+            assert_eq!(bits1, bits2);
+        }
     }
 }
