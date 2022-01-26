@@ -44,21 +44,40 @@ impl FoolProofShift for u8 {
     }
 }
 
+pub trait TrimSide {
+    const ANCHOR_LEFT: bool;
+}
+
+#[derive(Debug, Copy, Clone)]
+struct TrimLeft;
+#[derive(Debug, Copy, Clone)]
+struct TrimRight;
+
+impl TrimSide for TrimLeft {
+    const ANCHOR_LEFT: bool = false;
+}
+
+impl TrimSide for TrimRight {
+    const ANCHOR_LEFT: bool = true;
+}
+
 #[derive(Debug, Clone, Copy)]
-struct BitwiseArray<U, const ANCHOR_LEFT: bool> {
+struct BitwiseArray<U, S: TrimSide> {
     data: U,
     left_margin: u32,
     right_margin: u32,
-    //_marker: std::marker::PhantomData<T>,
+    _side_marker: core::marker::PhantomData<S>,
+    //_marker: core::marker::PhantomData<T>,
 }
 
-impl<U, const ANCHOR_LEFT: bool> BitwiseArray<U, ANCHOR_LEFT> {
+impl<U, S: TrimSide> BitwiseArray<U, S> {
     pub fn new(data: U, left_margin: u32, right_margin: u32) -> Self {
         assert!(left_margin + right_margin <= 8);
         Self {
             data,
             left_margin,
             right_margin,
+            _side_marker: core::marker::PhantomData,
         }
     }
 
@@ -79,25 +98,25 @@ impl<U, const ANCHOR_LEFT: bool> BitwiseArray<U, ANCHOR_LEFT> {
 
     fn trim(&mut self, len: u32) {
         if len >= self.len() {
-        } else if ANCHOR_LEFT {
+        } else if S::ANCHOR_LEFT {
             self.right_margin += self.len() - len;
         } else {
             self.left_margin += self.len() - len;
         }
     }
 
-    fn apply<F: FnOnce(u8, u8) -> u8, U2: Borrow<u8>, const ANCHOR_LEFT_2: bool>(
+    fn apply<F: FnOnce(u8, u8) -> u8, U2: Borrow<u8>, S2: TrimSide>(
         mut self,
-        mut other: BitwiseArray<U2, ANCHOR_LEFT_2>,
+        mut other: BitwiseArray<U2, S2>,
         func: F,
-    ) -> BitwiseArray<u8, true>
+    ) -> BitwiseArray<u8, TrimLeft>
     where
         U: Borrow<u8>,
     {
         self.trim(other.len());
         other.trim(self.len());
 
-        BitwiseArray::<u8, true>::new(
+        BitwiseArray::<u8, TrimLeft>::new(
             func(
                 self.masked(),
                 other
@@ -109,9 +128,9 @@ impl<U, const ANCHOR_LEFT: bool> BitwiseArray<U, ANCHOR_LEFT> {
         )
     }
 
-    fn assign<F: FnOnce(u8, u8) -> u8, U2: Borrow<u8>, const ANCHOR_LEFT_2: bool>(
+    fn assign<F: FnOnce(u8, u8) -> u8, U2: Borrow<u8>, S2: TrimSide>(
         &mut self,
-        mut other: BitwiseArray<U2, ANCHOR_LEFT_2>,
+        mut other: BitwiseArray<U2, S2>,
         func: F,
     ) where
         U: BorrowMut<u8>,
@@ -130,72 +149,72 @@ impl<U, const ANCHOR_LEFT: bool> BitwiseArray<U, ANCHOR_LEFT> {
     }
 }
 
-impl<U: Borrow<u8>, const ANCHOR_LEFT: bool> From<&BitwiseArray<U, ANCHOR_LEFT>> for u8 {
-    fn from(value: &BitwiseArray<U, ANCHOR_LEFT>) -> Self {
+impl<U: Borrow<u8>, S: TrimSide> From<&BitwiseArray<U, S>> for u8 {
+    fn from(value: &BitwiseArray<U, S>) -> Self {
         value.masked().fp_shr(value.right_margin)
     }
 }
 
-impl<U1: Borrow<u8>, U2: Borrow<u8>, const ANCHOR_LEFT_1: bool, const ANCHOR_LEFT_2: bool>
-    PartialEq<BitwiseArray<U2, ANCHOR_LEFT_2>> for BitwiseArray<U1, ANCHOR_LEFT_1>
+impl<U1: Borrow<u8>, U2: Borrow<u8>, S1: TrimSide, S2: TrimSide> PartialEq<BitwiseArray<U2, S2>>
+    for BitwiseArray<U1, S1>
 {
-    fn eq(&self, other: &BitwiseArray<U2, ANCHOR_LEFT_2>) -> bool {
+    fn eq(&self, other: &BitwiseArray<U2, S2>) -> bool {
         (self.len() == other.len()) & u8::from(self).eq(&u8::from(other))
     }
 }
 
-impl<U: Borrow<u8>, const ANCHOR_LEFT: bool> Eq for BitwiseArray<U, ANCHOR_LEFT> {}
+impl<U: Borrow<u8>, S: TrimSide> Eq for BitwiseArray<U, S> {}
 
-impl<U1: Borrow<u8>, U2: Borrow<u8>, const ANCHOR_LEFT_1: bool, const ANCHOR_LEFT_2: bool>
-    BitAnd<BitwiseArray<U2, ANCHOR_LEFT_2>> for BitwiseArray<U1, ANCHOR_LEFT_1>
+impl<U1: Borrow<u8>, U2: Borrow<u8>, S1: TrimSide, S2: TrimSide> BitAnd<BitwiseArray<U2, S2>>
+    for BitwiseArray<U1, S1>
 {
-    type Output = BitwiseArray<u8, true>;
+    type Output = BitwiseArray<u8, TrimLeft>;
 
-    fn bitand(self, other: BitwiseArray<U2, ANCHOR_LEFT_2>) -> Self::Output {
+    fn bitand(self, other: BitwiseArray<U2, S2>) -> Self::Output {
         self.apply(other, BitAnd::bitand)
     }
 }
 
-impl<U1: Borrow<u8>, U2: Borrow<u8>, const ANCHOR_LEFT_1: bool, const ANCHOR_LEFT_2: bool>
-    BitOr<BitwiseArray<U2, ANCHOR_LEFT_2>> for BitwiseArray<U1, ANCHOR_LEFT_1>
+impl<U1: Borrow<u8>, U2: Borrow<u8>, S1: TrimSide, S2: TrimSide> BitOr<BitwiseArray<U2, S2>>
+    for BitwiseArray<U1, S1>
 {
-    type Output = BitwiseArray<u8, true>;
+    type Output = BitwiseArray<u8, TrimLeft>;
 
-    fn bitor(self, other: BitwiseArray<U2, ANCHOR_LEFT_2>) -> Self::Output {
+    fn bitor(self, other: BitwiseArray<U2, S2>) -> Self::Output {
         self.apply(other, BitOr::bitor)
     }
 }
 
-impl<U1: Borrow<u8>, U2: Borrow<u8>, const ANCHOR_LEFT_1: bool, const ANCHOR_LEFT_2: bool>
-    BitXor<BitwiseArray<U2, ANCHOR_LEFT_2>> for BitwiseArray<U1, ANCHOR_LEFT_1>
+impl<U1: Borrow<u8>, U2: Borrow<u8>, S1: TrimSide, S2: TrimSide> BitXor<BitwiseArray<U2, S2>>
+    for BitwiseArray<U1, S1>
 {
-    type Output = BitwiseArray<u8, true>;
+    type Output = BitwiseArray<u8, TrimLeft>;
 
-    fn bitxor(self, other: BitwiseArray<U2, ANCHOR_LEFT_2>) -> Self::Output {
+    fn bitxor(self, other: BitwiseArray<U2, S2>) -> Self::Output {
         self.apply(other, BitXor::bitxor)
     }
 }
 
-impl<U1: BorrowMut<u8>, U2: Borrow<u8>, const ANCHOR_LEFT_1: bool, const ANCHOR_LEFT_2: bool>
-    BitAndAssign<BitwiseArray<U2, ANCHOR_LEFT_2>> for BitwiseArray<U1, ANCHOR_LEFT_1>
+impl<U1: BorrowMut<u8>, U2: Borrow<u8>, S1: TrimSide, S2: TrimSide>
+    BitAndAssign<BitwiseArray<U2, S2>> for BitwiseArray<U1, S1>
 {
-    fn bitand_assign(&mut self, other: BitwiseArray<U2, ANCHOR_LEFT_2>) {
+    fn bitand_assign(&mut self, other: BitwiseArray<U2, S2>) {
         self.assign(other, BitAnd::bitand)
     }
 }
 
-impl<U1: BorrowMut<u8>, U2: Borrow<u8>, const ANCHOR_LEFT_1: bool, const ANCHOR_LEFT_2: bool>
-    BitOrAssign<BitwiseArray<U2, ANCHOR_LEFT_2>> for BitwiseArray<U1, ANCHOR_LEFT_1>
+impl<U1: BorrowMut<u8>, U2: Borrow<u8>, S1: TrimSide, S2: TrimSide>
+    BitOrAssign<BitwiseArray<U2, S2>> for BitwiseArray<U1, S1>
 {
-    fn bitor_assign(&mut self, other: BitwiseArray<U2, ANCHOR_LEFT_2>) {
+    fn bitor_assign(&mut self, other: BitwiseArray<U2, S2>) {
         self.assign(other, BitOr::bitor)
     }
 }
 
-impl<U1: BorrowMut<u8>, U2: Borrow<u8>, const ANCHOR_LEFT_1: bool, const ANCHOR_LEFT_2: bool>
-    BitXorAssign<BitwiseArray<U2, ANCHOR_LEFT_2>> for BitwiseArray<U1, ANCHOR_LEFT_1>
+impl<U1: BorrowMut<u8>, U2: Borrow<u8>, S1: TrimSide, S2: TrimSide>
+    BitXorAssign<BitwiseArray<U2, S2>> for BitwiseArray<U1, S1>
 {
-    fn bitxor_assign(&mut self, other: BitwiseArray<U2, ANCHOR_LEFT_2>) {
+    fn bitxor_assign(&mut self, other: BitwiseArray<U2, S2>) {
         self.assign(other, BitXor::bitxor)
     }
 }
@@ -208,7 +227,7 @@ mod tests {
     proptest! {
         #[test]
         fn test_bitwise_masked(left_margin in 0_u32..=4, right_margin in 0_u32..=4) {
-            let bits = BitwiseArray::<_, false>::new(0xFF, left_margin, right_margin);
+            let bits = BitwiseArray::<_, TrimRight>::new(0xFF, left_margin, right_margin);
             let calc_result = bits.masked();
 
             println!("masked bits = {:?}", calc_result);
@@ -221,26 +240,26 @@ mod tests {
 
         #[test]
         fn test_bitwise_array_eq(value in 0x00_u8..0x10, shift1 in 0_u32..=4, shift2 in 0_u32..=4) {
-            let bits1 = BitwiseArray::<_, false>::new(value << shift1, 4 - shift1, shift1);
-            let bits2 = BitwiseArray::<_, true>::new(value << shift2, 4 - shift2, shift2);
+            let bits1 = BitwiseArray::<_, TrimRight>::new(value << shift1, 4 - shift1, shift1);
+            let bits2 = BitwiseArray::<_, TrimLeft>::new(value << shift2, 4 - shift2, shift2);
 
             assert_eq!(bits1, bits2);
         }
 
         #[test]
         fn test_trim_left(value: u8, new_size in 0_u32..=8) {
-            let mut bits = BitwiseArray::<_, true>::new(value, 0, 0);
+            let mut bits = BitwiseArray::<_, TrimLeft>::new(value, 0, 0);
             bits.trim(new_size);
 
-            assert_eq!(u8::from(&bits), value.fp_shr(8 - new_size));
+            assert_eq!(u8::from(&bits), value.fp_shl(8 - new_size).fp_shr(8 - new_size));
         }
 
         #[test]
         fn test_trim_right(value: u8, new_size in 0_u32..=8) {
-            let mut bits = BitwiseArray::<_, false>::new(value, 0, 0);
+            let mut bits = BitwiseArray::<_, TrimRight>::new(value, 0, 0);
             bits.trim(new_size);
 
-            assert_eq!(u8::from(&bits), value.fp_shl(8 - new_size).fp_shr(8 - new_size));
+            assert_eq!(u8::from(&bits), value.fp_shr(8 - new_size));
         }
     }
 }
