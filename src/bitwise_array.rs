@@ -118,10 +118,11 @@ impl<U, S: TrimSide> BitwiseArray<U, S> {
 
         BitwiseArray::<u8, TrimLeft>::new(
             func(
-                self.masked(),
+                *self.data.borrow(),
                 other
-                    .masked()
-                    .fp_ishl((other.left_margin as i32) - (self.left_margin as i32)),
+                    .data
+                    .borrow()
+                    .fp_ishr((self.left_margin as i32) - (other.left_margin as i32)),
             ),
             self.left_margin,
             self.right_margin,
