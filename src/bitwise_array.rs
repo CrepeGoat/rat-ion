@@ -115,6 +115,7 @@ impl<U, S: TrimSide> BitwiseArray<U, S> {
     {
         self.trim(other.len());
         other.trim(self.len());
+        assert_eq!(self.len(), other.len());
 
         BitwiseArray::<u8, TrimLeft>::new(
             func(
@@ -138,6 +139,7 @@ impl<U, S: TrimSide> BitwiseArray<U, S> {
     {
         self.trim(other.len());
         other.trim(self.len());
+        assert_eq!(self.len(), other.len());
 
         *self.data.borrow_mut() = (*self.data.borrow() & !self.mask())
             & (func(
