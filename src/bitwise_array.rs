@@ -28,7 +28,7 @@ impl FoolProofShift for u8 {
         use core::cmp::Ordering::*;
         match shift.cmp(&0) {
             Greater => self.checked_shl(shift as u32).unwrap_or_default(),
-            Less => self.checked_shr(shift as u32).unwrap_or_default(),
+            Less => self.checked_shr((-shift) as u32).unwrap_or_default(),
             Equal => self,
         }
     }
@@ -38,7 +38,7 @@ impl FoolProofShift for u8 {
         use core::cmp::Ordering::*;
         match shift.cmp(&0) {
             Greater => self.checked_shr(shift as u32).unwrap_or_default(),
-            Less => self.checked_shl(shift as u32).unwrap_or_default(),
+            Less => self.checked_shl((-shift) as u32).unwrap_or_default(),
             Equal => self,
         }
     }
@@ -225,6 +225,66 @@ mod tests {
     use proptest::*;
 
     proptest! {
+        #[test]
+        fn test_fp_shl(value: u8, lshift in 0_u32..8) {
+            assert_eq!(value.fp_shl(lshift), value << lshift);
+        }
+
+        #[test]
+        fn test_fp_shl_8(value: u8) {
+            assert_eq!(value.fp_shl(8), 0);
+        }
+
+        #[test]
+        fn test_fp_shr(value: u8, rshift in 0_u32..8) {
+            assert_eq!(value.fp_shr(rshift), value >> rshift);
+        }
+
+        #[test]
+        fn test_fp_shr_8(value: u8) {
+            assert_eq!(value.fp_shr(8), 0);
+        }
+
+        #[test]
+        fn test_fp_ishl(value: u8, lshift in 0_i32..8) {
+            assert_eq!(value.fp_ishl(lshift), value << (lshift as u32));
+        }
+
+        #[test]
+        fn test_fp_ishl_neg(value: u8, lshift in -7_i32..=0) {
+            assert_eq!(value.fp_ishl(lshift), value >> ((-lshift) as u32));
+        }
+
+        #[test]
+        fn test_fp_ishl_8(value: u8) {
+            assert_eq!(value.fp_ishl(8_i32), 0);
+        }
+
+        #[test]
+        fn test_fp_ishl_neg8(value: u8) {
+            assert_eq!(value.fp_ishl(-8_i32), 0);
+        }
+
+        #[test]
+        fn test_fp_ishr(value: u8, rshift in 0_i32..8) {
+            assert_eq!(value.fp_ishr(rshift), value >> (rshift as u32));
+        }
+
+        #[test]
+        fn test_fp_ishr_neg(value: u8, rshift in -7_i32..=0) {
+            assert_eq!(value.fp_ishr(rshift), value << ((-rshift) as u32));
+        }
+
+        #[test]
+        fn test_fp_ishr_8(value: u8) {
+            assert_eq!(value.fp_ishr(8_i32), 0);
+        }
+
+        #[test]
+        fn test_fp_ishr_neg8(value: u8) {
+            assert_eq!(value.fp_ishr(-8_i32), 0);
+        }
+
         #[test]
         fn test_bitwise_masked(left_margin in 0_u32..=4, right_margin in 0_u32..=4) {
             let bits = BitwiseArray::<_, TrimRight>::new(0xFF, left_margin, right_margin);
