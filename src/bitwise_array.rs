@@ -321,5 +321,50 @@ mod tests {
 
             assert_eq!(u8::from(&bits), value.fp_shr(8 - new_size));
         }
+
+        #[test]
+        fn test_bitand(value1 in 0_u8..0x10, lshift1 in 0_u32..=4, value2 in 0_u8..0x40, lshift2 in 0_u32..=2) {
+            let value1 = value1 << lshift1;
+            let value2 = value2 << lshift2;
+
+            let bits1 = BitwiseArray::<_, TrimLeft>::new(&value1, 4 - lshift1, lshift1);
+            let bits2 = BitwiseArray::<_, TrimLeft>::new(value2, 2 - lshift2, lshift2);
+            assert_eq!((bits1.len(), bits2.len()), (4, 6));
+            assert_eq!((u8::from(&bits1), u8::from(&bits2)), (value1 >> lshift1, value2 >> lshift2));
+
+            let result = bits1 & bits2;
+            assert_eq!(result.len(), 4);
+            assert_eq!(u8::from(&result), ((value1 >> lshift1) & (value2 >> lshift2)) & (0xFF_u8 >> 4));
+        }
+
+        #[test]
+        fn test_bitor(value1 in 0_u8..0x10, lshift1 in 0_u32..=4, value2 in 0_u8..0x40, lshift2 in 0_u32..=2) {
+            let value1 = value1 << lshift1;
+            let value2 = value2 << lshift2;
+
+            let bits1 = BitwiseArray::<_, TrimLeft>::new(value1, 4 - lshift1, lshift1);
+            let bits2 = BitwiseArray::<_, TrimRight>::new(&value2, 2 - lshift2, lshift2);
+            assert_eq!((bits1.len(), bits2.len()), (4, 6));
+            assert_eq!((u8::from(&bits1), u8::from(&bits2)), (value1 >> lshift1, value2 >> lshift2));
+
+            let result = bits1 | bits2;
+            assert_eq!(result.len(), 4);
+            assert_eq!(u8::from(&result), ((value1 >> lshift1) | (value2 >> (lshift2 + 2))) & (0xFF_u8 >> 4));
+        }
+
+        #[test]
+        fn test_bitxor(value1 in 0_u8..0x10, lshift1 in 0_u32..=4, value2 in 0_u8..0x40, lshift2 in 0_u32..=2) {
+            let value1 = value1 << lshift1;
+            let value2 = value2 << lshift2;
+
+            let bits1 = BitwiseArray::<_, TrimLeft>::new(value1, 4 - lshift1, lshift1);
+            let bits2 = BitwiseArray::<_, TrimRight>::new(value2, 2 - lshift2, lshift2);
+            assert_eq!((bits1.len(), bits2.len()), (4, 6));
+            assert_eq!((u8::from(&bits1), u8::from(&bits2)), (value1 >> lshift1, value2 >> lshift2));
+
+            let result = bits2 ^ bits1;
+            assert_eq!(result.len(), 4);
+            assert_eq!(u8::from(&result), ((value1 >> lshift1) ^ (value2 >> (lshift2 + 2))) & (0xFF_u8 >> 4));
+        }
     }
 }
