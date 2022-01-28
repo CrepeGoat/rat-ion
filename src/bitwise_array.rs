@@ -85,8 +85,19 @@ impl<U: Borrow<u8>, S: TrimSide> BitwiseArray<U, S> {
         8 - self.left_margin - self.right_margin
     }
 
+    #[inline]
+    fn mask_left(&self) -> u8 {
+        u8::MAX.fp_shr(self.left_margin)
+    }
+
+    #[inline]
+    fn mask_right(&self) -> u8 {
+        u8::MAX.fp_shl(self.right_margin)
+    }
+
+    #[inline]
     fn mask(&self) -> u8 {
-        u8::MAX.fp_shl(self.right_margin) & u8::MAX.fp_shr(self.left_margin)
+        self.mask_left() & self.mask_right()
     }
 
     fn masked(&self) -> u8
@@ -146,6 +157,26 @@ impl<U: Borrow<u8>, S: TrimSide> BitwiseArray<U, S> {
                     .borrow()
                     .fp_ishr((self.left_margin as i32) - (other.left_margin as i32)),
             ) & self.mask())
+    }
+
+    pub fn leading_zeros(&self) -> u32 {
+        ((self.data.borrow() & self.mask_left()) | !self.mask_right()).leading_zeros()
+            - (self.left_margin as u32)
+    }
+
+    pub fn leading_ones(&self) -> u32 {
+        ((self.data.borrow() | !self.mask_left()) & self.mask_right()).leading_ones()
+            - (self.left_margin as u32)
+    }
+
+    pub fn trailing_zeros(&self) -> u32 {
+        ((self.data.borrow() & self.mask_right()) | !self.mask_left()).trailing_zeros()
+            - (self.right_margin as u32)
+    }
+
+    pub fn trailing_ones(&self) -> u32 {
+        ((self.data.borrow() | !self.mask_right()) & self.mask_left()).trailing_ones()
+            - (self.right_margin as u32)
     }
 }
 
@@ -320,6 +351,34 @@ mod tests {
             bits.trim(new_size);
 
             assert_eq!(u8::from(&bits), value.fp_shr(8 - new_size));
+        }
+
+        #[test]
+        fn test_leading_zeros(value in 0_u8..0x10, shift_left in 0_u32..=4) {
+            let bits = BitwiseArray::<_, TrimLeft>::new(value << shift_left, 4 - shift_left, shift_left);
+
+            assert_eq!(bits.leading_zeros(), value.leading_zeros() - 4);
+        }
+
+        #[test]
+        fn test_leading_ones(value in 0_u8..0x10, shift_left in 0_u32..=4) {
+            let bits = BitwiseArray::<_, TrimRight>::new(value << shift_left, 4 - shift_left, shift_left);
+
+            assert_eq!(bits.leading_ones(), (value | (0xFF << 4)).leading_ones() - 4);
+        }
+
+        #[test]
+        fn test_trailing_zeros(value in 0_u8..0x10, shift_left in 0_u32..=4) {
+            let bits = BitwiseArray::<_, TrimLeft>::new(value << shift_left, 4 - shift_left, shift_left);
+
+            assert_eq!(bits.trailing_zeros(), (value | (0xFF << 4)).trailing_zeros());
+        }
+
+        #[test]
+        fn test_trailing_ones(value in 0_u8..0x10, shift_left in 0_u32..=4) {
+            let bits = BitwiseArray::<_, TrimRight>::new(value << shift_left, 4 - shift_left, shift_left);
+
+            assert_eq!(bits.trailing_ones(), value.trailing_ones());
         }
 
         #[test]
