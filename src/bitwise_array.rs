@@ -62,7 +62,7 @@ impl TrimSide for TrimRight {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct BitwiseArray<U, S: TrimSide> {
+struct BitwiseArray<U: Borrow<u8>, S: TrimSide> {
     data: U,
     left_margin: u32,
     right_margin: u32,
@@ -70,7 +70,7 @@ struct BitwiseArray<U, S: TrimSide> {
     //_marker: core::marker::PhantomData<T>,
 }
 
-impl<U, S: TrimSide> BitwiseArray<U, S> {
+impl<U: Borrow<u8>, S: TrimSide> BitwiseArray<U, S> {
     pub fn new(data: U, left_margin: u32, right_margin: u32) -> Self {
         assert!(left_margin + right_margin <= 8);
         Self {
@@ -109,10 +109,7 @@ impl<U, S: TrimSide> BitwiseArray<U, S> {
         mut self,
         mut other: BitwiseArray<U2, S2>,
         func: F,
-    ) -> BitwiseArray<u8, TrimLeft>
-    where
-        U: Borrow<u8>,
-    {
+    ) -> BitwiseArray<u8, TrimLeft> {
         self.trim(other.len());
         other.trim(self.len());
         assert_eq!(self.len(), other.len());
