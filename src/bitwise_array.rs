@@ -138,7 +138,23 @@ impl<U: Borrow<u8>, S: TrimSide> BitwiseArray<U, S> {
         )
     }
 
-    fn assign<F: FnOnce(u8, u8) -> u8, U2: Borrow<u8>, S2: TrimSide>(
+    pub fn assign<U2: Borrow<u8>, S2: TrimSide>(&mut self, mut other: BitwiseArray<U2, S2>)
+    where
+        U: BorrowMut<u8>,
+    {
+        self.trim(other.len());
+        other.trim(self.len());
+        assert_eq!(self.len(), other.len());
+
+        *self.data.borrow_mut() = (*self.data.borrow() & !self.mask())
+            | (other
+                .data
+                .borrow()
+                .fp_ishr((self.left_margin as i32) - (other.left_margin as i32))
+                & self.mask())
+    }
+
+    fn apply_assign<F: FnOnce(u8, u8) -> u8, U2: Borrow<u8>, S2: TrimSide>(
         &mut self,
         mut other: BitwiseArray<U2, S2>,
         func: F,
@@ -230,7 +246,7 @@ impl<U1: BorrowMut<u8>, U2: Borrow<u8>, S1: TrimSide, S2: TrimSide>
     BitAndAssign<BitwiseArray<U2, S2>> for BitwiseArray<U1, S1>
 {
     fn bitand_assign(&mut self, other: BitwiseArray<U2, S2>) {
-        self.assign(other, BitAnd::bitand)
+        self.apply_assign(other, BitAnd::bitand)
     }
 }
 
@@ -238,7 +254,7 @@ impl<U1: BorrowMut<u8>, U2: Borrow<u8>, S1: TrimSide, S2: TrimSide>
     BitOrAssign<BitwiseArray<U2, S2>> for BitwiseArray<U1, S1>
 {
     fn bitor_assign(&mut self, other: BitwiseArray<U2, S2>) {
-        self.assign(other, BitOr::bitor)
+        self.apply_assign(other, BitOr::bitor)
     }
 }
 
@@ -246,7 +262,7 @@ impl<U1: BorrowMut<u8>, U2: Borrow<u8>, S1: TrimSide, S2: TrimSide>
     BitXorAssign<BitwiseArray<U2, S2>> for BitwiseArray<U1, S1>
 {
     fn bitxor_assign(&mut self, other: BitwiseArray<U2, S2>) {
-        self.assign(other, BitXor::bitxor)
+        self.apply_assign(other, BitXor::bitxor)
     }
 }
 
@@ -426,6 +442,56 @@ mod tests {
             assert_eq!(u8::from(&result), ((value1 >> lshift1) ^ (value2 >> (lshift2 + 2))) & (0xFF_u8 >> 4));
         }
 
+        #[test]
+        fn test_assign1(value1 in 0_u8..0x10, lshift1 in 0_u32..=4, value2 in 0_u8..0x40, lshift2 in 0_u32..=2) {
+            let value1 = value1 << lshift1;
+            let value2 = value2 << lshift2;
+            let mut result = value1;
+
+            let mut bits_result = BitwiseArray::<_, TrimLeft>::new(&mut result, 4 - lshift1, lshift1);
+            let bits2 = BitwiseArray::<_, TrimLeft>::new(value2, 2 - lshift2, lshift2);
+
+            bits_result.assign(bits2);
+
+            assert_eq!(bits_result.len(), 4);
+            let mask = (0xFF_u8 << lshift1) & (0xFF_u8 >> (4 - lshift1));
+            assert_eq!(result & !mask, (!mask) & value1);
+            assert_eq!(result & mask, mask & (value2.fp_ishl((lshift1 as i32) - (lshift2 as i32))));
+        }
+
+        #[test]
+        fn test_assign2(value1 in 0_u8..0x10, lshift1 in 0_u32..=4, value2 in 0_u8..0x40, lshift2 in 0_u32..=2) {
+            let value1 = value1 << lshift1;
+            let value2 = value2 << lshift2;
+            let mut result = value2;
+
+            let mut bits_result = BitwiseArray::<_, TrimLeft>::new(&mut result, 2 - lshift2, lshift2);
+            let bits1 = BitwiseArray::<_, TrimLeft>::new(value1, 4 - lshift1, lshift1);
+
+            bits_result.assign(bits1);
+
+            assert_eq!(bits_result.len(), 4);
+            let mask = (0xFF_u8 << lshift2) & (0xFF_u8 >> (4 - lshift2));
+            assert_eq!(result & !mask, (!mask) & value2);
+            assert_eq!(result & mask, mask & (value1.fp_ishl((lshift2 as i32) - (lshift1 as i32))));
+        }
+
+        #[test]
+        fn test_assign3(value1 in 0_u8..0x10, lshift1 in 0_u32..=4, value2 in 0_u8..0x40, lshift2 in 0_u32..=2) {
+            let value1 = value1 << lshift1;
+            let value2 = value2 << lshift2;
+            let mut result = value2;
+
+            let mut bits_result = BitwiseArray::<_, TrimRight>::new(&mut result, 2 - lshift2, lshift2);
+            let bits1 = BitwiseArray::<_, TrimLeft>::new(value1, 4 - lshift1, lshift1);
+
+            bits_result.assign(bits1);
+
+            assert_eq!(bits_result.len(), 4);
+            let mask = (0xFF_u8 << (lshift2 + 2)) & (0xFF_u8 >> (2 - lshift2));
+            assert_eq!(result & !mask, (!mask) & value2);
+            assert_eq!(result & mask, mask & (value1.fp_ishl((lshift2 as i32 + 2) - (lshift1 as i32))));
+        }
 
         #[test]
         fn test_bitand_assign(value1 in 0_u8..0x10, lshift1 in 0_u32..=4, value2 in 0_u8..0x40, lshift2 in 0_u32..=2) {
