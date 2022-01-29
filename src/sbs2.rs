@@ -21,7 +21,7 @@ pub(crate) mod decode {
     use super::*;
 
     pub(crate) fn read(
-        stream: (&[u8], usize),
+        stream: InputStream,
     ) -> Result<(InputStream, NonZeroU64), IncompleteInt<NonZeroU64>> {
         let (stream, first_bit) = take::<_, u8, _, ()>(1_usize)(stream)
             .map_err(|_| IncompleteInt::new_unbounded(unsafe { NonZeroU64::new_unchecked(1) }))?;

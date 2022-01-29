@@ -23,7 +23,7 @@ pub(crate) mod decode {
     use super::*;
 
     pub(crate) fn read(
-        stream: (&[u8], usize),
+        stream: InputStream,
     ) -> Result<(InputStream, NonZeroU64), IncompleteInt<NonZeroU64>> {
         // Get prefixing ones stream
         let (stream, min_digits_len) = take_ones::<_, _, ()>(usize::MAX)(stream).unwrap();

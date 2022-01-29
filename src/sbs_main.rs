@@ -56,7 +56,7 @@ pub struct Coder(RhoRegion);
 impl Coder {
     pub fn read<'a>(
         &mut self,
-        stream: (&'a [u8], usize),
+        stream: InputStream<'a>,
     ) -> Result<(InputStream<'a>, NonZeroU64), IncompleteInt<NonZeroU64>> {
         let result = match self.0.which() {
             SbsMarker::Mode1 => sbs1::decode::read(stream),
