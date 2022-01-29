@@ -27,8 +27,8 @@ impl FoolProofShift for u8 {
     fn fp_ishl(self, shift: i32) -> Self {
         use core::cmp::Ordering::*;
         match shift.cmp(&0) {
-            Greater => self.checked_shl(shift as u32).unwrap_or_default(),
-            Less => self.checked_shr((-shift) as u32).unwrap_or_default(),
+            Greater => self.fp_shl(shift as u32),
+            Less => self.fp_shr((-shift) as u32),
             Equal => self,
         }
     }
@@ -37,8 +37,8 @@ impl FoolProofShift for u8 {
     fn fp_ishr(self, shift: i32) -> Self {
         use core::cmp::Ordering::*;
         match shift.cmp(&0) {
-            Greater => self.checked_shr(shift as u32).unwrap_or_default(),
-            Less => self.checked_shl((-shift) as u32).unwrap_or_default(),
+            Greater => self.fp_shr(shift as u32),
+            Less => self.fp_shl((-shift) as u32),
             Equal => self,
         }
     }
