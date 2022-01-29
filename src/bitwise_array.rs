@@ -49,9 +49,9 @@ pub trait TrimSide {
 }
 
 #[derive(Debug, Copy, Clone)]
-struct TrimLeft;
+pub struct TrimLeft;
 #[derive(Debug, Copy, Clone)]
-struct TrimRight;
+pub struct TrimRight;
 
 impl TrimSide for TrimLeft {
     const ANCHOR_LEFT: bool = false;
@@ -62,7 +62,7 @@ impl TrimSide for TrimRight {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct BitwiseArray<U: Borrow<u8>, S: TrimSide> {
+pub struct BitwiseArray<U: Borrow<u8>, S: TrimSide> {
     data: U,
     left_margin: u32,
     right_margin: u32,
