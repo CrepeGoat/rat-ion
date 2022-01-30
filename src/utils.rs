@@ -2,6 +2,7 @@ use core::num::NonZeroUsize;
 use core::ops::{RangeBounds, RangeFrom, RangeInclusive};
 
 pub type InputStream<'a> = (&'a [u8], usize);
+pub type OutputStream<'a> = (&'a mut [u8], usize);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IncompleteInt<T> {

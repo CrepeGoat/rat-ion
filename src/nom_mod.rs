@@ -3,6 +3,8 @@ use nom::bits::streaming::take as nom_take;
 
 use nom::lib::std::ops::{AddAssign, Shl, Shr};
 
+use crate::utils::OutputStream;
+
 type IResult<I, O, E> = Result<(I, O), E>;
 
 pub fn take_partial<'a, O>(
@@ -32,7 +34,7 @@ where
 pub fn give8(
     (output, bit_offset): (&mut [u8], usize),
     (source, length): (u8, usize),
-) -> nom::IResult<(&mut [u8], usize), (u8, usize), ()> {
+) -> nom::IResult<OutputStream, (u8, usize), ()> {
     assert!(bit_offset < 8);
     assert!(length <= 8);
 

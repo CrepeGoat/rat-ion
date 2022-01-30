@@ -2,54 +2,104 @@ use crate::nom_ext::take_ones;
 use crate::nom_mod::take_partial;
 use crate::utils::{IncompleteInt, InputStream};
 use nom::bits::streaming::take;
+use nom::combinator::map;
 
 use core::num::{NonZeroU64, NonZeroUsize};
-
-pub(crate) mod encode {
-    use super::*;
-
-    fn write(value: u64) {
-        unimplemented!()
-    }
-}
+use core::ops::{RangeFrom, RangeInclusive};
 
 pub(crate) mod decode {
     use super::*;
+
+    #[inline(always)]
+    const fn masked_suffix(bits: u64, len: usize) -> u64 {
+        if len >= 8 * core::mem::size_of::<u64>() {
+            bits
+        } else {
+            bits & !(u64::MAX << len)
+        }
+    }
+
+    #[inline]
+    pub(super) const fn suffix_len(vlen_prefix: usize, next_bit: bool) -> usize {
+        vlen_prefix + (next_bit as usize)
+    }
+
+    #[inline]
+    pub(super) const fn flen_prefix_bits(vlen_prefix: usize, next_bit: bool) -> u64 {
+        (3 - (next_bit as u64)) << suffix_len(vlen_prefix, next_bit)
+    }
+
+    #[inline]
+    pub(super) fn from_partial_length_indicator(min_vlen_prefix: usize) -> RangeFrom<NonZeroU64> {
+        RangeFrom {
+            start: NonZeroU64::new(flen_prefix_bits(min_vlen_prefix, false)).unwrap(),
+        }
+    }
+
+    #[inline]
+    pub(super) fn from_full_length_indicator(vlen_prefix: usize) -> RangeInclusive<NonZeroU64> {
+        RangeInclusive::new(
+            NonZeroU64::new(flen_prefix_bits(vlen_prefix, false)).unwrap(),
+            NonZeroU64::new(flen_prefix_bits(vlen_prefix + 1, false) - 1).unwrap(),
+        )
+    }
+
+    #[inline]
+    pub(super) fn from_full_prefix(
+        vlen_prefix: usize,
+        next_bit: bool,
+        partial_suffix: (u64, usize),
+    ) -> RangeInclusive<NonZeroU64> {
+        let (partial_bits, partial_len) = partial_suffix;
+        let partial_bits = masked_suffix(partial_bits, partial_len);
+
+        let suffix_len = suffix_len(vlen_prefix, next_bit);
+        let flen_prefix_bits = flen_prefix_bits(vlen_prefix, next_bit);
+        let needed_len = suffix_len - partial_len;
+
+        RangeInclusive::new(
+            NonZeroU64::new(flen_prefix_bits | (partial_bits << needed_len)).unwrap(),
+            NonZeroU64::new(flen_prefix_bits | (((partial_bits + 1) << needed_len) - 1)).unwrap(),
+        )
+    }
+
+    #[inline]
+    pub(super) fn from_full(vlen_prefix: usize, next_bit: bool, suffix_bits: u64) -> NonZeroU64 {
+        let suffix_len = suffix_len(vlen_prefix, next_bit);
+        let flen_prefix_bits = flen_prefix_bits(vlen_prefix, next_bit);
+        let suffix_bits = masked_suffix(suffix_bits, suffix_len);
+
+        NonZeroU64::new(flen_prefix_bits | suffix_bits).unwrap()
+    }
 
     pub(crate) fn read(
         stream: InputStream,
     ) -> Result<(InputStream, NonZeroU64), IncompleteInt<NonZeroU64>> {
         // Get prefixing ones stream
-        let (stream, min_digits_len) = take_ones::<_, _, ()>(usize::MAX)(stream).unwrap();
-        let (stream, _) = take::<_, u8, _, ()>(1_usize)(stream).map_err(|_| {
-            IncompleteInt::new_unbounded(NonZeroU64::new(3 << min_digits_len).unwrap())
-        })?;
+        let (stream, vlen_prefix) = take_ones::<_, _, ()>(usize::MAX)(stream).unwrap();
+        let (stream, _) = take::<_, u8, _, ()>(1_usize)(stream)
+            .map_err(|_| IncompleteInt::Unbounded(from_partial_length_indicator(vlen_prefix)))?;
 
         // Get first literal digit bit -> determines result's MSBs
-        let (stream, first_digit) = take::<_, u8, _, ()>(1_usize)(stream).map_err(|_| {
-            IncompleteInt::new_bounded(
-                (
-                    NonZeroU64::new(3 << min_digits_len).unwrap(),
-                    NonZeroU64::new((6 << min_digits_len) - 1).unwrap(),
-                ),
-                NonZeroUsize::new(min_digits_len + 2).unwrap(),
-            )
-        })?;
+        let (stream, first_digit) = map(take::<_, u8, _, ()>(1_usize), |fd| fd != 0)(stream)
+            .map_err(|_| {
+                IncompleteInt::Bounded(
+                    from_full_length_indicator(vlen_prefix),
+                    NonZeroUsize::new(1 + suffix_len(vlen_prefix, true)).unwrap(),
+                )
+            })?;
 
-        let digits_len = min_digits_len + (first_digit as usize);
-        let leading_bits = (3 - (first_digit as u64)) << digits_len;
+        let suffix_len = suffix_len(vlen_prefix, first_digit);
 
-        match take_partial::<u64>(digits_len)(stream) {
-            Ok((stream, result)) => Ok((stream, NonZeroU64::new(result + leading_bits).unwrap())),
-            Err((partial, needed)) => Err(IncompleteInt::new_bounded(
-                (
-                    NonZeroU64::new(leading_bits + (partial << needed.get())).unwrap(),
-                    NonZeroU64::new(
-                        leading_bits + (partial << needed.get()) + (1 << needed.get()) - 1,
-                    )
-                    .unwrap(),
+        match take_partial::<u64>(suffix_len)(stream) {
+            Ok((stream, result)) => Ok((stream, from_full(vlen_prefix, first_digit, result))),
+            Err((partial, needed)) => Err(IncompleteInt::Bounded(
+                from_full_prefix(
+                    suffix_len,
+                    first_digit,
+                    (partial, suffix_len - needed.get()),
                 ),
-                NonZeroUsize::new(digits_len).unwrap(),
+                needed,
             )),
         }
     }
@@ -58,7 +108,45 @@ pub(crate) mod decode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::*;
     use rstest::*;
+
+    proptest! {
+        #[test]
+        fn test_from_partial_length_indicator(min_vlen_prefix in 0_usize..64) {
+            assert!(decode::from_partial_length_indicator(min_vlen_prefix).contains(&decode::from_partial_length_indicator(min_vlen_prefix).start));
+        }
+
+        #[test]
+        fn test_from_full_length_indicator(vlen_prefix in 0_usize..63) {
+            let result = decode::from_full_length_indicator(vlen_prefix);
+
+            assert_eq!(
+                result.start(),
+                &decode::from_partial_length_indicator(vlen_prefix).start,
+            );
+            assert_eq!(
+                result.end().get(),
+                decode::from_partial_length_indicator(vlen_prefix+1).start.get() - 1,
+            );
+        }
+
+        #[test]
+        fn from_full_prefix(vlen_prefix in 0_usize..62) {
+            let result1 = decode::from_full_prefix(vlen_prefix, false, (0, 0));
+            let result2 = decode::from_full_prefix(vlen_prefix, true, (0, 0));
+
+            assert_eq!(
+                result1.start(),
+                decode::from_full_length_indicator(vlen_prefix).start(),
+            );
+            assert_eq!(result1.end().get(), result2.start().get() - 1);
+            assert_eq!(
+                result2.end().get(),
+                decode::from_full_length_indicator(vlen_prefix+1).start().get() - 1,
+            );
+        }
+    }
 
     #[rstest(stream, expt_result,
         case((&[0b00111111][..], 0), Ok(((&[0b00111111][..], 2), NonZeroU64::new(3).unwrap()))),
