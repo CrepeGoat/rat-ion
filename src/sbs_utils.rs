@@ -1,23 +1,114 @@
 use crate::nom_ext::take_ones;
 use crate::nom_mod::take_partial;
-use crate::utils::{IncompleteInt, InputStream};
+use crate::utils::{IncompleteInt, InputStream, OutputStream};
 use nom::bits::streaming::take;
 use nom::combinator::map;
 
 use core::num::{NonZeroU64, NonZeroUsize};
 use core::ops::{RangeFrom, RangeInclusive};
 
+#[inline(always)]
+const fn masked_suffix(bits: u64, len: usize) -> u64 {
+    if len >= 8 * core::mem::size_of::<u64>() {
+        bits
+    } else {
+        bits & !(u64::MAX << len)
+    }
+}
+
+pub(crate) mod encode {
+    use super::*;
+    use crate::nom_mod::give8;
+
+    #[inline]
+    pub(super) const fn vlen_indicator(flen: usize, next_bit: bool) -> usize {
+        flen + (next_bit as usize) - 3
+    }
+
+    #[inline]
+    pub(super) const fn suffix_len(flen: usize) -> usize {
+        flen - 2
+    }
+
+    pub(crate) fn write(
+        stream: OutputStream,
+        value: NonZeroU64,
+    ) -> Result<OutputStream, IncompleteInt<NonZeroU64>> {
+        const TYPE_BITS: usize = 8 * core::mem::size_of::<u64>();
+
+        let value = value.get();
+        let flen = 8 * core::mem::size_of::<u64>() - (value.leading_zeros() as usize);
+
+        let flen_next_bit = (value & (1 << (flen - 2))) != 0;
+        let vlen_next_bit = !flen_next_bit;
+        let vlen_prefix = vlen_indicator(flen, flen_next_bit);
+        let suffix_len = suffix_len(flen);
+        let suffix_bits = masked_suffix(value, suffix_len);
+
+        println!(
+            "{:?}x<1> <0, {:?}> <{:b}; {:?}>",
+            vlen_prefix, vlen_next_bit as u8, suffix_bits, suffix_len
+        );
+
+        // Write vlen prefix
+        let mut stream = stream;
+        let mut source_left = vlen_prefix;
+        while source_left > 0 {
+            let (_stream, (_, _source_left)) = give8(stream, (0xFF, source_left))
+                .map_err(|_| decode::from_partial_length_indicator(vlen_prefix - source_left))
+                .map_err(IncompleteInt::Unbounded)?;
+
+            stream = _stream;
+            source_left = _source_left;
+
+            println!("{:?}, left = {}", stream, source_left);
+        }
+        let (stream, _) = give8(stream, (0x00, 1))
+            .map_err(|_| decode::from_partial_length_indicator(vlen_prefix))
+            .map_err(IncompleteInt::Unbounded)?;
+
+        // Write next bit
+        let (stream, _) = give8(stream, (vlen_next_bit as u8, 1)).map_err(|_| {
+            IncompleteInt::Bounded(
+                decode::from_full_length_indicator(vlen_prefix),
+                NonZeroUsize::new(decode::suffix_len(vlen_prefix, true)).unwrap(),
+            )
+        })?;
+
+        // Write suffix bits
+        let suffix_bytes = suffix_bits.to_be_bytes();
+        let source = (&suffix_bytes[..], 0_usize);
+        let (source, _) = take::<_, u64, _, ()>(TYPE_BITS - suffix_len)(source).unwrap();
+
+        let mut stream = stream;
+        let mut source = source;
+        let mut bits_left = suffix_len;
+        while !source.0.is_empty() {
+            let take_len = 8 - source.1;
+            let (_source, source_val) = take::<_, u8, _, ()>(take_len)(source).unwrap();
+            let (_stream, _) = give8(stream, (source_val, take_len)).map_err(|_| {
+                IncompleteInt::Bounded(
+                    decode::from_full_prefix(
+                        vlen_prefix,
+                        vlen_next_bit,
+                        (suffix_bits >> bits_left, suffix_len - bits_left),
+                    ),
+                    NonZeroUsize::new(decode::suffix_len(vlen_prefix, true)).unwrap(),
+                )
+            })?;
+
+            source = _source;
+            stream = _stream;
+            bits_left -= take_len;
+        }
+        assert_eq!(bits_left, 0);
+
+        Ok(stream)
+    }
+}
+
 pub(crate) mod decode {
     use super::*;
-
-    #[inline(always)]
-    const fn masked_suffix(bits: u64, len: usize) -> u64 {
-        if len >= 8 * core::mem::size_of::<u64>() {
-            bits
-        } else {
-            bits & !(u64::MAX << len)
-        }
-    }
 
     #[inline]
     pub(super) const fn suffix_len(vlen_prefix: usize, next_bit: bool) -> usize {
@@ -163,11 +254,40 @@ mod tests {
         case((&[0b11100000][..], 0), Ok(((&[][..], 0), NonZeroU64::new(24).unwrap()))),
         case((&[0b11100111][..], 0), Ok(((&[][..], 0), NonZeroU64::new(31).unwrap()))),
     )]
+    #[trace]
     fn test_read(
         stream: InputStream,
         expt_result: Result<(InputStream, NonZeroU64), IncompleteInt<NonZeroU64>>,
     ) {
         let calc_result = decode::read(stream);
         assert_eq!(calc_result, expt_result);
+    }
+
+    #[rstest(value, expt_result,
+        case(NonZeroU64::new(3).unwrap(), Ok((&[0b00111111][..], 2))),
+        case(NonZeroU64::new(4).unwrap(), Ok((&[0b01011111][..], 3))),
+        case(NonZeroU64::new(5).unwrap(), Ok((&[0b01111111][..], 3))),
+        case(NonZeroU64::new(6).unwrap(), Ok((&[0b10001111][..], 4))),
+        case(NonZeroU64::new(7).unwrap(), Ok((&[0b10011111][..], 4))),
+        case(NonZeroU64::new(8).unwrap(), Ok((&[0b10100111][..], 5))),
+        case(NonZeroU64::new(11).unwrap(), Ok((&[0b10111111][..], 5))),
+        case(NonZeroU64::new(12).unwrap(), Ok((&[0b11000011][..], 6))),
+        case(NonZeroU64::new(15).unwrap(), Ok((&[0b11001111][..], 6))),
+        case(NonZeroU64::new(16).unwrap(), Ok((&[0b11010001][..], 7))),
+        case(NonZeroU64::new(23).unwrap(), Ok((&[0b11011111][..], 7))),
+        case(NonZeroU64::new(24).unwrap(), Ok((&[][..], 0))),
+        case(NonZeroU64::new(31).unwrap(), Ok((&[][..], 0))),
+    )]
+    #[trace]
+    fn test_write(
+        value: NonZeroU64,
+        expt_result: Result<InputStream, IncompleteInt<NonZeroU64>>, // <- need to use `InputStream` for immutabile static references
+    ) {
+        let stream = (&mut [0xFF_u8; 1][..], 0_usize);
+        let calc_result = encode::write(stream, value);
+        assert_eq!(
+            calc_result.map(|(bits, bit_offset)| (&*bits, bit_offset)),
+            expt_result,
+        );
     }
 }

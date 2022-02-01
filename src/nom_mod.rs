@@ -32,7 +32,7 @@ where
 }
 
 pub fn give8(
-    (output, bit_offset): (&mut [u8], usize),
+    (output, bit_offset): OutputStream,
     (source, length): (u8, usize),
 ) -> nom::IResult<OutputStream, (u8, usize), ()> {
     assert!(bit_offset < 8);
