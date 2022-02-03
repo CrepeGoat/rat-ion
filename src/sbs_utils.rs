@@ -2,6 +2,7 @@ use crate::utils::{IncompleteInt, IncompleteIntError};
 
 use bitstream_io::{
     read::{BitRead, BitReader},
+    write::{BitWrite, BitWriter},
     BigEndian,
 };
 
@@ -14,6 +15,106 @@ const fn masked_suffix(bits: u64, len: usize) -> u64 {
         bits
     } else {
         bits & !(u64::MAX << len)
+    }
+}
+
+#[inline(always)]
+const fn masked_bit(bits: u64, index: usize) -> bool {
+    (bits & (1_u64 << index)) != 0
+}
+
+mod encoder_utils {
+    use super::*;
+
+    #[inline]
+    pub(super) const fn vlen_indicator(flen: usize, next_bit: bool) -> usize {
+        flen + (next_bit as usize) - 3
+    }
+
+    #[inline]
+    pub(super) const fn suffix_len(flen: usize) -> usize {
+        flen - 2
+    }
+}
+
+pub(crate) struct Encoder<W: BitWrite>(W);
+
+impl<W: BitWrite> Encoder<W> {
+    pub(crate) fn write(
+        &mut self,
+        value: NonZeroU64,
+    ) -> Result<(), IncompleteIntError<NonZeroU64>> {
+        use encoder_utils::*;
+
+        let value = value.get();
+        let flen = 8 * core::mem::size_of::<u64>() - (value.leading_zeros() as usize);
+
+        let flen_next_bit = (value & (1 << (flen - 2))) != 0;
+        let vlen_next_bit = !flen_next_bit;
+        let vlen_prefix = vlen_indicator(flen, flen_next_bit);
+        let suffix_len = suffix_len(flen);
+        let suffix_bits = masked_suffix(value, suffix_len);
+
+        // Write vlen prefix
+        for sublen in 0..vlen_prefix {
+            self.0.write_bit(true).map_err(|e| {
+                (
+                    e,
+                    IncompleteInt::Unbounded(decoder_utils::from_partial_length_indicator(sublen)),
+                )
+            })?;
+        }
+
+        self.0.write_bit(false).map_err(|e| {
+            (
+                e,
+                IncompleteInt::Unbounded(decoder_utils::from_partial_length_indicator(vlen_prefix)),
+            )
+        })?;
+
+        // Write next bit
+        self.0.write_bit(vlen_next_bit).map_err(|e| {
+            (
+                e,
+                IncompleteInt::Bounded(
+                    decoder_utils::from_full_length_indicator(vlen_prefix),
+                    NonZeroUsize::new(1 + decoder_utils::suffix_len(vlen_prefix, true)).unwrap(),
+                ),
+            )
+        })?;
+
+        // Write suffix bits
+        for sublen in (0..suffix_len).rev() {
+            self.0
+                .write_bit(masked_bit(suffix_bits, sublen))
+                .map_err(|e| {
+                    (
+                        e,
+                        IncompleteInt::Bounded(
+                            decoder_utils::from_full_prefix(
+                                vlen_prefix,
+                                vlen_next_bit,
+                                (suffix_bits, suffix_len - sublen),
+                            ),
+                            NonZeroUsize::new(sublen).unwrap(),
+                        ),
+                    )
+                })?;
+        }
+
+        assert_eq!(
+            value,
+            decoder_utils::from_full(vlen_prefix, vlen_next_bit, suffix_bits).get()
+        );
+        Ok(())
+    }
+
+    pub(crate) fn write_inf(&mut self) -> std::io::Error {
+        loop {
+            if let Err(e) = self.0.write_bit(true) {
+                return e;
+            }
+        }
     }
 }
 
@@ -105,13 +206,13 @@ impl<R: BitRead> Decoder<R> {
         let suffix_len = suffix_len(vlen_prefix, first_digit);
 
         let mut suffix_bits: u64 = 0;
-        for suffix_sublen in 0..suffix_len {
+        for sublen in 0..suffix_len {
             let bit = self.0.read_bit().map_err(|e| {
                 (
                     e,
                     IncompleteInt::Bounded(
-                        from_full_prefix(suffix_len, first_digit, (suffix_bits, suffix_sublen)),
-                        NonZeroUsize::new(suffix_len - suffix_sublen).unwrap(),
+                        from_full_prefix(suffix_len, first_digit, (suffix_bits, sublen)),
+                        NonZeroUsize::new(suffix_len - sublen).unwrap(),
                     ),
                 )
             })?;
@@ -191,9 +292,39 @@ mod tests {
         _read_len: usize,
         expt_result: Result<NonZeroU64, IncompleteInt<NonZeroU64>>,
     ) {
-        let stream = BitReader::<_, BigEndian>::new(stream);
-        let mut reader = Decoder(stream);
+        let bitstream = BitReader::<_, BigEndian>::new(stream);
+        let mut reader = Decoder(bitstream);
         let calc_result = reader.read().map_err(|(_e, partial_int)| partial_int);
         assert_eq!(calc_result, expt_result);
+    }
+
+    #[rstest(value, expt_stream, expt_result,
+        case(NonZeroU64::new(3).unwrap(), [0b00111111], Ok(())),
+        case(NonZeroU64::new(4).unwrap(), [0b01011111], Ok(())),
+        case(NonZeroU64::new(5).unwrap(), [0b01111111], Ok(())),
+        case(NonZeroU64::new(6).unwrap(), [0b10001111], Ok(())),
+        case(NonZeroU64::new(7).unwrap(), [0b10011111], Ok(())),
+        case(NonZeroU64::new(8).unwrap(), [0b10100111], Ok(())),
+        case(NonZeroU64::new(11).unwrap(), [0b10111111], Ok(())),
+        case(NonZeroU64::new(12).unwrap(), [0b11000011], Ok(())),
+        case(NonZeroU64::new(15).unwrap(), [0b11001111], Ok(())),
+        case(NonZeroU64::new(16).unwrap(), [0b11010001], Ok(())),
+        case(NonZeroU64::new(23).unwrap(), [0b11011111], Ok(())),
+        case(NonZeroU64::new(24).unwrap(), [0b11100000], Ok(())),
+        case(NonZeroU64::new(31).unwrap(), [0b11100111], Ok(())),
+    )]
+    #[trace]
+    fn test_write(
+        value: NonZeroU64,
+        expt_stream: [u8; 1],
+        expt_result: Result<(), IncompleteInt<NonZeroU64>>, // <- need to use `InputStream` for immutabile static references
+    ) {
+        let mut stream = [0xFF_u8];
+        let bitstream = BitWriter::<_, BigEndian>::new(&mut stream[..]);
+        let mut writer = Encoder(bitstream);
+        let calc_result = writer.write(value).map_err(|(_e, partial_int)| partial_int);
+        writer.write_inf();
+        assert_eq!(calc_result, expt_result);
+        assert_eq!(&stream[..], expt_stream);
     }
 }
