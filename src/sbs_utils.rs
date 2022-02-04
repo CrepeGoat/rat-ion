@@ -51,49 +51,47 @@ mod encode {
 
         // Write vlen prefix
         for sublen in 0..vlen_prefix {
-            bitstream.write_bit(true).map_err(|e| {
-                (
+            if let Err(e) = bitstream.write_bit(true) {
+                return Err((
                     e,
                     IncompleteInt::Unbounded(decode::from_partial_length_indicator(sublen)),
-                )
-            })?;
+                ));
+            }
         }
 
-        bitstream.write_bit(false).map_err(|e| {
-            (
+        if let Err(e) = bitstream.write_bit(false) {
+            return Err((
                 e,
                 IncompleteInt::Unbounded(decode::from_partial_length_indicator(vlen_prefix)),
-            )
-        })?;
+            ));
+        }
 
         // Write next bit
-        bitstream.write_bit(vlen_next_bit).map_err(|e| {
-            (
+        if let Err(e) = bitstream.write_bit(vlen_next_bit) {
+            return Err((
                 e,
                 IncompleteInt::Bounded(
                     decode::from_full_length_indicator(vlen_prefix),
                     NonZeroUsize::new(1 + decode::suffix_len(vlen_prefix, true)).unwrap(),
                 ),
-            )
-        })?;
+            ));
+        }
 
         // Write suffix bits
         for sublen in (0..suffix_len).rev() {
-            bitstream
-                .write_bit(masked_bit(suffix_bits, sublen))
-                .map_err(|e| {
-                    (
-                        e,
-                        IncompleteInt::Bounded(
-                            decode::from_full_prefix(
-                                vlen_prefix,
-                                vlen_next_bit,
-                                (suffix_bits, suffix_len - sublen),
-                            ),
-                            NonZeroUsize::new(sublen).unwrap(),
+            if let Err(e) = bitstream.write_bit(masked_bit(suffix_bits, sublen)) {
+                return Err((
+                    e,
+                    IncompleteInt::Bounded(
+                        decode::from_full_prefix(
+                            vlen_prefix,
+                            vlen_next_bit,
+                            (suffix_bits, suffix_len - sublen),
                         ),
-                    )
-                })?;
+                        NonZeroUsize::new(sublen).unwrap(),
+                    ),
+                ));
+            }
         }
 
         assert_eq!(
@@ -201,7 +199,7 @@ mod decode {
                 (
                     e,
                     IncompleteInt::Bounded(
-                        from_full_prefix(suffix_len, first_digit, (suffix_bits, sublen)),
+                        from_full_prefix(vlen_prefix, first_digit, (suffix_bits, sublen)),
                         NonZeroUsize::new(suffix_len - sublen).unwrap(),
                     ),
                 )
@@ -274,6 +272,15 @@ mod tests {
         case([0b11011111], 7, Ok(NonZeroU64::new(23).unwrap())),
         case([0b11100000], 8, Ok(NonZeroU64::new(24).unwrap())),
         case([0b11100111], 8, Ok(NonZeroU64::new(31).unwrap())),
+        case([0b11101000], 8, Err(
+            IncompleteInt::new_bounded(
+                (NonZeroU64::new(32).unwrap(), NonZeroU64::new(33).unwrap()),
+                NonZeroUsize::new(1).unwrap(),
+            ),
+        )),
+        case([0b11111111], 8, Err(
+            IncompleteInt::new_unbounded(NonZeroU64::new(0x300).unwrap()),
+        )),
     )]
     fn test_read(
         stream: [u8; 1],
@@ -299,8 +306,16 @@ mod tests {
         case(NonZeroU64::new(23).unwrap(), [0b11011111], Ok(())),
         case(NonZeroU64::new(24).unwrap(), [0b11100000], Ok(())),
         case(NonZeroU64::new(31).unwrap(), [0b11100111], Ok(())),
+        case(NonZeroU64::new(32).unwrap(), [0b11101000], Err(
+            IncompleteInt::new_bounded(
+                (NonZeroU64::new(32).unwrap(), NonZeroU64::new(33).unwrap()),
+                NonZeroUsize::new(1).unwrap(),
+            ),
+        )),
+        case(NonZeroU64::new(0x300).unwrap(), [0b11111111], Err(
+            IncompleteInt::new_unbounded(NonZeroU64::new(0x300).unwrap()),
+        )),
     )]
-    #[trace]
     fn test_write(
         value: NonZeroU64,
         expt_stream: [u8; 1],
@@ -312,6 +327,6 @@ mod tests {
             encode::write(&mut bitstream, value).map_err(|(_e, partial_int)| partial_int);
         encode::write_inf(&mut bitstream);
         assert_eq!(calc_result, expt_result);
-        assert_eq!(&stream[..], expt_stream);
+        assert_eq!(stream, expt_stream);
     }
 }
