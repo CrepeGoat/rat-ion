@@ -258,6 +258,53 @@ mod tests {
                 decode::from_full_length_indicator(vlen_prefix+1).start().get() - 1,
             );
         }
+
+        #[test]
+        fn test_read_write_eq(stream: [u8; 2]) {
+            #[derive(Debug)]
+            enum Symbol<T> {
+                Full(T),
+                Partial(IncompleteInt<T>),
+            }
+
+            // Read symbols from stream
+            println!("{:8b}-{:8b}", stream[0], stream[1]);
+            let mut bitstream = BitReader::<_, BigEndian>::new(&stream[..]);
+            let mut symbols = Vec::new();
+            loop {
+                match decode::read(&mut bitstream) {
+                    Ok(full_int) => symbols.push(Symbol::Full(full_int)),
+                    Err((_e, partial_int)) => {
+                        symbols.push(Symbol::Partial(partial_int));
+                        break;
+                    }
+                }
+            }
+            println!("{:?}", symbols);
+
+            // Write symbols to new stream
+            let mut stream_out = [0_u8; 2];
+            let mut bitstream_out = BitWriter::<_, BigEndian>::new(&mut stream_out[..]);
+            for symbol in symbols.into_iter() {
+                match symbol {
+                    Symbol::Full(full_int) => encode::write(&mut bitstream_out, full_int).unwrap(),
+                    Symbol::Partial(IncompleteInt::Unbounded(partial_int)) =>
+                        assert_eq!(
+                            encode::write(&mut bitstream_out, partial_int.start).unwrap_err().1,
+                            IncompleteInt::Unbounded(partial_int),
+                        ),
+                    Symbol::Partial(IncompleteInt::Bounded(partial_int, count)) =>
+                        assert_eq!(
+                            encode::write(&mut bitstream_out, *partial_int.start()).unwrap_err().1,
+                            IncompleteInt::Bounded(partial_int, count),
+                        ),
+                }
+            }
+            encode::write_inf(&mut bitstream_out);
+            println!("{:8b}-{:8b}", stream_out[0], stream_out[1]);
+
+            assert_eq!(stream, stream_out);
+        }
     }
 
     #[rstest(stream, _read_len, expt_result,
