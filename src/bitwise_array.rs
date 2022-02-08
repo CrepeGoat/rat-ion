@@ -62,7 +62,7 @@ impl TrimSide for TrimRight {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct BitwiseArray<U: Borrow<u8>, S: TrimSide> {
+pub struct BitwiseArray<U: Borrow<u8>, S: TrimSide = TrimRight> {
     data: U,
     left_margin: u32,
     right_margin: u32,

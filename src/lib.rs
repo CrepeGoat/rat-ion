@@ -1,3 +1,4 @@
+mod bitslice;
 mod bitwise_array;
 
 #[cfg(test)]
