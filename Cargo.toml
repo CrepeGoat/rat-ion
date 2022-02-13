@@ -9,3 +9,4 @@ edition = "2018"
 
 [dev-dependencies]
 proptest = "1.0.0"
+rstest = "0.12.0"

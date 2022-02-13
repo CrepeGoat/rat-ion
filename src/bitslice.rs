@@ -1,20 +1,11 @@
-use crate::bitwise_array::{BitwiseArray, TrimLeft, TrimRight};
-
-#[inline(always)]
-const fn masked_suffix(bits: u64, len: usize) -> u64 {
-    if len >= 8 * core::mem::size_of::<u64>() {
-        bits
-    } else {
-        bits & !(u64::MAX << len)
-    }
-}
+use crate::bitwise_array::{BitwiseArray, TrimRight};
 
 #[inline(always)]
 const fn masked_bit(bits: u8, index: u32) -> bool {
     (bits & (1 << index)) != 0
 }
 
-pub(crate) struct BitDecoder<'a> {
+pub struct BitDecoder<'a> {
     bits: &'a [u8],
     bit_offset: u32,
 }
@@ -41,8 +32,11 @@ impl<'a> BitDecoder<'a> {
     }
 
     fn bitarray(&mut self) -> Result<BitwiseArray<&u8, TrimRight>, usize> {
-        self.validate_len(1)?;
-        Ok(BitwiseArray::new(&self.bits[0], self.bit_offset, 0))
+        Ok(BitwiseArray::new(
+            self.bits.first().ok_or(0_usize)?,
+            self.bit_offset,
+            0,
+        ))
     }
 
     pub(crate) fn skip_bits(&mut self, count: usize) -> Result<(), usize> {
@@ -54,13 +48,13 @@ impl<'a> BitDecoder<'a> {
 
     pub(crate) fn read_bit(&mut self) -> Result<bool, usize> {
         self.validate_len(1)?;
-        let result = masked_bit(self.bits[0], self.bit_offset);
+        let result = masked_bit(self.bits[0], 7 - self.bit_offset);
         self.skip_bits(1).unwrap();
         Ok(result)
     }
 }
 
-pub(crate) struct BitEncoder<'a> {
+pub struct BitEncoder<'a> {
     bits: &'a mut [u8],
     bit_offset: u32,
 }
@@ -87,27 +81,58 @@ impl<'a> BitEncoder<'a> {
     }
 
     fn bitarray(&mut self) -> Result<BitwiseArray<&mut u8, TrimRight>, usize> {
-        self.validate_len(1)?;
-        Ok(BitwiseArray::new(&mut self.bits[0], self.bit_offset, 0))
+        Ok(BitwiseArray::new(
+            self.bits.first_mut().ok_or(0_usize)?,
+            self.bit_offset,
+            0,
+        ))
     }
 
-    fn advance(&'a mut self, count: usize) -> Result<(), usize> {
+    #[inline]
+    fn advance(&mut self, count: usize) -> Result<(), usize> {
         self.validate_len(count)?;
-        self.bits = &mut self.bits[((count + self.bit_offset as usize) / 8)..];
+        self.bits = &mut core::mem::replace(&mut self.bits, &mut [][..]) // <- avoids multiple &mut's at once
+            [((count + self.bit_offset as usize) / 8)..];
         self.bit_offset = ((count + self.bit_offset as usize) % 8) as u32;
         Ok(())
     }
 
-    pub(crate) fn write_bit(&'a mut self, bit: bool) -> Result<(), usize> {
-        let mut bitarray = self.bitarray()?;
-        bitarray.assign(BitwiseArray::<_, TrimRight>::new(
+    pub(crate) fn write_bit(&mut self, bit: bool) -> Result<(), usize> {
+        self.bitarray()?.assign(BitwiseArray::<_, TrimRight>::new(
             if bit { 0xFF } else { 0x00 },
             7,
             0,
         ));
-        self.bits = &mut self.bits[((self.bit_offset + 1) / 8) as usize..];
-        self.bit_offset = (self.bit_offset + 1) % 8;
+        self.advance(1)?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::*;
+
+    proptest! {
+        #[test]
+        fn read_bit_write_bit_eq(bits: [u8; 2]) {
+            let mut new_bits = [0_u8; 2];
+            let mut bit_buffer = vec![];
+
+            // Read bits
+            let mut reader = BitDecoder::new(&bits);
+            while let Ok(bit) = reader.read_bit() {
+                bit_buffer.push(bit);
+            }
+
+            // Write bits
+            let mut writer = BitEncoder::new(&mut new_bits);
+            for bit in bit_buffer.into_iter() {
+                writer.write_bit(bit).unwrap();
+            }
+
+            assert_eq!(new_bits, bits);
+        }
     }
 }
