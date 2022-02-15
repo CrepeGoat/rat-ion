@@ -4,20 +4,6 @@ use crate::{sbs1, sbs2};
 
 use core::num::NonZeroU64;
 
-/*
-mod encode {
-    use super::*;
-
-    fn fits_next(value: u64) -> bool {
-        unimplemented!()
-    }
-
-    fn write(value: u64) {
-        unimplemented!()
-    }
-}
-*/
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum SbsMarker {
     Mode1,
@@ -53,13 +39,16 @@ impl RhoRegion {
     }
 }
 
+impl Default for RhoRegion {
+    fn default() -> Self {
+        Self::Eq0
+    }
+}
+
+#[derive(Debug, Copy, Clone, Default)]
 pub struct Coder(RhoRegion);
 
 impl Coder {
-    pub fn new() -> Self {
-        Self(RhoRegion::Eq0)
-    }
-
     pub fn write(
         &mut self,
         bitstream: &mut BitEncoder,
