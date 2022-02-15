@@ -23,6 +23,11 @@ impl<'a> BitDecoder<'a> {
     }
 
     #[inline]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.bits_left() == 0
+    }
+
+    #[inline]
     fn validate_len(&self, count: usize) -> Result<(), usize> {
         if self.bits_left() < count {
             Err(self.bits_left())
@@ -69,6 +74,11 @@ impl<'a> BitEncoder<'a> {
 
     pub(crate) fn bits_left(&self) -> usize {
         8 * self.bits.len() - (self.bit_offset as usize)
+    }
+
+    #[inline]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.bits_left() == 0
     }
 
     #[inline]
