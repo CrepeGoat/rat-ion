@@ -1,5 +1,5 @@
 mod bitslice;
-mod bitwise_array;
+mod masked_bits;
 mod sbs1;
 mod sbs2;
 mod sbs_main;

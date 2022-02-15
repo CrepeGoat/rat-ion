@@ -1,4 +1,4 @@
-use crate::bitwise_array::{BitwiseArray, TrimRight};
+use crate::masked_bits::MaskedBits;
 
 #[inline(always)]
 const fn masked_bit(bits: u8, index: u32) -> bool {
@@ -31,8 +31,8 @@ impl<'a> BitDecoder<'a> {
         }
     }
 
-    fn bitarray(&mut self) -> Result<BitwiseArray<&u8, TrimRight>, usize> {
-        Ok(BitwiseArray::new(
+    fn bitarray(&mut self) -> Result<MaskedBits<&u8>, usize> {
+        Ok(MaskedBits::new(
             self.bits.first().ok_or(0_usize)?,
             self.bit_offset,
             0,
@@ -80,8 +80,8 @@ impl<'a> BitEncoder<'a> {
         }
     }
 
-    fn bitarray(&mut self) -> Result<BitwiseArray<&mut u8, TrimRight>, usize> {
-        Ok(BitwiseArray::new(
+    fn bitarray(&mut self) -> Result<MaskedBits<&mut u8>, usize> {
+        Ok(MaskedBits::new(
             self.bits.first_mut().ok_or(0_usize)?,
             self.bit_offset,
             0,
@@ -98,7 +98,7 @@ impl<'a> BitEncoder<'a> {
     }
 
     pub(crate) fn write_bit(&mut self, bit: bool) -> Result<(), usize> {
-        self.bitarray()?.assign(BitwiseArray::<_, TrimRight>::new(
+        self.bitarray()?.trim_trailing_to(1).assign(MaskedBits::new(
             if bit { 0xFF } else { 0x00 },
             7,
             0,
