@@ -2,9 +2,11 @@ mod bitslice;
 mod masked_bits;
 mod sbs1;
 mod sbs2;
-mod sbs_main;
+pub mod sbs_main;
 mod sbs_utils;
 mod utils;
+
+pub mod rationals;
 
 #[cfg(test)]
 mod tests {

@@ -1,6 +1,7 @@
 use crate::bitslice::{BitDecoder, BitEncoder};
 use crate::utils::IncompleteInt;
 use crate::{sbs1, sbs2};
+use core::cmp::max;
 
 use core::num::NonZeroU64;
 
@@ -84,6 +85,33 @@ impl Coder {
         self.0 = self.0.next(result);
 
         Ok(result)
+    }
+
+    pub fn read_iter(mut self, mut bitstream: BitDecoder) -> impl Iterator<Item = NonZeroU64> + '_ {
+        core::iter::from_fn(move || match self.read(&mut bitstream) {
+            Ok(value) => Some(value),
+            Err(IncompleteInt::Unbounded(_)) => None,
+            Err(IncompleteInt::Bounded(range, _)) => {
+                // Goal: for a given bit count `n`:
+                // - each encoding should be unique
+                // - the scheme should prefer to first cover all smaller-denominator values
+                //   -> each ambiguous encoding should have the smallest denominator possible
+                // https://en.wikipedia.org/wiki/Continued_fraction#Best_rational_within_an_interval
+                NonZeroU64::new(max(range.start().get(), 2))
+            }
+        })
+    }
+
+    pub fn write_iter<I: Iterator<Item = NonZeroU64>>(
+        mut self,
+        mut bitstream: BitEncoder,
+        iter: I,
+    ) -> Result<(), ()> {
+        for item in iter {
+            self.write(&mut bitstream, item).map_err(|_| ())?;
+        }
+        self.write_inf(&mut bitstream);
+        Ok(())
     }
 }
 
