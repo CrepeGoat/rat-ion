@@ -1,25 +1,23 @@
-use crate::bitslice::BitDecoder;
-use crate::sbs_main::Coder;
 use crate::utils::IncompleteInt;
 
 use core::cmp::max;
 use core::num::NonZeroU64;
 
-fn iter_cf(coder: Coder, bitstream: BitDecoder) -> impl Iterator<Item = NonZeroU64> + '_ {
-    coder
-        .read_iter(bitstream)
-        .filter_map(|inc_int| match inc_int {
-            Ok(value) => Some(value),
-            Err(IncompleteInt::Unbounded(_)) => None,
-            Err(IncompleteInt::Bounded(range, _)) => {
-                // Goal: for a given bit count `n`:
-                // - each encoding should be unique
-                // - the scheme should prefer to first cover all smaller-denominator values
-                //   -> each ambiguous encoding should have the smallest denominator possible
-                // https://en.wikipedia.org/wiki/Continued_fraction#Best_rational_within_an_interval
-                NonZeroU64::new(max(range.start().get(), 2))
-            }
-        })
+fn iter_cf<I: Iterator<Item = Result<NonZeroU64, IncompleteInt<NonZeroU64>>>>(
+    iter: I,
+) -> impl Iterator<Item = NonZeroU64> {
+    iter.filter_map(|inc_int| match inc_int {
+        Ok(value) => Some(value),
+        Err(IncompleteInt::Unbounded(_)) => None,
+        Err(IncompleteInt::Bounded(range, _)) => {
+            // Goal: for a given bit count `n`:
+            // - each encoding should be unique
+            // - the scheme should prefer to first cover all smaller-denominator values
+            //   -> each ambiguous encoding should have the smallest denominator possible
+            // https://en.wikipedia.org/wiki/Continued_fraction#Best_rational_within_an_interval
+            NonZeroU64::new(max(range.start().get(), 2))
+        }
+    })
 }
 
 pub fn cf_to_rational64<I: Iterator<Item = NonZeroU64>>(iter_rev: I) -> (i64, NonZeroU64) {
@@ -41,7 +39,7 @@ mod tests {
     use rstest::*;
 
     #[test]
-    fn test_cf_to_rational64_uniques() {
+    fn test_cf_to_rational64_uniqueness() {
         let encodeds: Vec<_> = (0_u8..=0x0F)
             .map(|byte| {
                 let bits = byte.to_be_bytes();
@@ -50,7 +48,12 @@ mod tests {
                     bitstream.read_bit();
                 }
                 let coder = Coder::default();
-                cf_to_rational64(iter_cf(coder, bitstream))
+                cf_to_rational64(
+                    iter_cf(coder.read_iter(bitstream))
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                        .rev(),
+                )
             })
             .collect();
         println!("{:?}", encodeds);
@@ -59,17 +62,15 @@ mod tests {
         assert!(encodeds.into_iter().all(move |item| cache.insert(item)));
     }
 
-    #[rstest(bits, bit_offset, expt_frac,
-        case([0b00001111], 4, (1, NonZeroU64::new(1).unwrap())),
+    #[rstest(seq1, seq2,
+        case(vec![], vec![]),
     )]
-    fn test_cf_to_rational64(bits: [u8; 1], bit_offset: u32, expt_frac: (i64, NonZeroU64)) {
-        let mut bitstream = BitDecoder::new(&bits[..]);
-        for _ in 0..bit_offset {
-            bitstream.read_bit();
-        }
-        let coder = Coder::default();
-        let result = cf_to_rational64(iter_cf(coder, bitstream));
-
-        assert_eq!(result, expt_frac);
+    fn test_iter_cf_uniqueness(
+        seq1: Vec<Result<NonZeroU64, IncompleteInt<NonZeroU64>>>,
+        seq2: Vec<Result<NonZeroU64, IncompleteInt<NonZeroU64>>>,
+    ) {
+        let result1 = cf_to_rational64(iter_cf(seq1.into_iter().rev()));
+        let result2 = cf_to_rational64(iter_cf(seq2.into_iter().rev()));
+        assert_ne!(result1, result2);
     }
 }
