@@ -1,4 +1,4 @@
-use crate::bitslice::{BitDecoder, BitEncoder};
+use crate::bitslice::BitDecoder;
 use crate::sbs_utils;
 use crate::utils::IncompleteInt;
 
@@ -68,6 +68,7 @@ pub(crate) mod decode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bitslice::BitEncoder;
     use core::num::NonZeroUsize;
 
     use rstest::*;

@@ -138,14 +138,14 @@ impl<U: Borrow<u8>> MaskedBits<U> {
         )
     }
 
-    pub unsafe fn split_leading_at_mut(&mut self, len: u32) -> (Self, Self)
+    pub unsafe fn split_leading_at_mut(&mut self, _len: u32) -> (Self, Self)
     where
         U: BorrowMut<u8>,
     {
         todo!()
     }
 
-    pub unsafe fn split_trailing_at_mut(&mut self, len: u32) -> (Self, Self)
+    pub unsafe fn split_trailing_at_mut(&mut self, _len: u32) -> (Self, Self)
     where
         U: BorrowMut<u8>,
     {

@@ -45,7 +45,7 @@ mod tests {
                 let bits = byte.to_be_bytes();
                 let mut bitstream = BitDecoder::new(&bits[..]);
                 for _ in 0..4 {
-                    bitstream.read_bit();
+                    bitstream.read_bit().unwrap();
                 }
                 let coder = Coder::default();
                 cf_to_rational64(

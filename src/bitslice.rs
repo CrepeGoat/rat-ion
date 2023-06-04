@@ -11,19 +11,19 @@ pub struct BitDecoder<'a> {
 }
 
 impl<'a> BitDecoder<'a> {
-    pub(crate) fn new(bits: &'a [u8]) -> Self {
+    pub fn new(bits: &'a [u8]) -> Self {
         Self {
             bits,
             bit_offset: 0,
         }
     }
 
-    pub(crate) fn bits_left(&self) -> usize {
+    pub fn bits_left(&self) -> usize {
         8 * self.bits.len() - (self.bit_offset as usize)
     }
 
     #[inline]
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.bits_left() == 0
     }
 
@@ -36,22 +36,22 @@ impl<'a> BitDecoder<'a> {
         }
     }
 
-    fn bitarray(&mut self) -> Result<MaskedBits<&u8>, usize> {
-        Ok(MaskedBits::new(
-            self.bits.first().ok_or(0_usize)?,
-            self.bit_offset,
-            0,
-        ))
-    }
+    // fn bitarray(&mut self) -> Result<MaskedBits<&u8>, usize> {
+    //     Ok(MaskedBits::new(
+    //         self.bits.first().ok_or(0_usize)?,
+    //         self.bit_offset,
+    //         0,
+    //     ))
+    // }
 
-    pub(crate) fn skip_bits(&mut self, count: usize) -> Result<(), usize> {
+    pub fn skip_bits(&mut self, count: usize) -> Result<(), usize> {
         self.validate_len(count)?;
         self.bits = &self.bits[((count + self.bit_offset as usize) / 8)..];
         self.bit_offset = ((count + self.bit_offset as usize) % 8) as u32;
         Ok(())
     }
 
-    pub(crate) fn read_bit(&mut self) -> Result<bool, usize> {
+    pub fn read_bit(&mut self) -> Result<bool, usize> {
         self.validate_len(1)?;
         let result = masked_bit(self.bits[0], 7 - self.bit_offset);
         self.skip_bits(1).unwrap();
@@ -65,19 +65,19 @@ pub struct BitEncoder<'a> {
 }
 
 impl<'a> BitEncoder<'a> {
-    pub(crate) fn new(bits: &'a mut [u8]) -> Self {
+    pub fn new(bits: &'a mut [u8]) -> Self {
         Self {
             bits,
             bit_offset: 0,
         }
     }
 
-    pub(crate) fn bits_left(&self) -> usize {
+    pub fn bits_left(&self) -> usize {
         8 * self.bits.len() - (self.bit_offset as usize)
     }
 
     #[inline]
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.bits_left() == 0
     }
 
@@ -107,7 +107,7 @@ impl<'a> BitEncoder<'a> {
         Ok(())
     }
 
-    pub(crate) fn write_bit(&mut self, bit: bool) -> Result<(), usize> {
+    pub fn write_bit(&mut self, bit: bool) -> Result<(), usize> {
         self.bitarray()?.trim_trailing_to(1).assign(MaskedBits::new(
             if bit { 0xFF } else { 0x00 },
             7,

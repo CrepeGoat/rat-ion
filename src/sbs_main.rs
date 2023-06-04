@@ -1,7 +1,6 @@
 use crate::bitslice::{BitDecoder, BitEncoder};
 use crate::utils::IncompleteInt;
 use crate::{sbs1, sbs2};
-use core::cmp::max;
 
 use core::num::NonZeroU64;
 
