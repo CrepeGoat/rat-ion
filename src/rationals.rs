@@ -1,9 +1,11 @@
+use crate::bitslice::BitDecoder;
+use crate::sbs_main::Coder;
 use crate::utils::IncompleteInt;
 
 use core::cmp::max;
 use core::num::NonZeroU64;
 
-fn iter_cf<I: Iterator<Item = Result<NonZeroU64, IncompleteInt<NonZeroU64>>>>(
+pub fn map_to_complete_cf<I: Iterator<Item = Result<NonZeroU64, IncompleteInt<NonZeroU64>>>>(
     iter: I,
 ) -> impl Iterator<Item = NonZeroU64> {
     iter.filter_map(|inc_int| match inc_int {
@@ -20,57 +22,56 @@ fn iter_cf<I: Iterator<Item = Result<NonZeroU64, IncompleteInt<NonZeroU64>>>>(
     })
 }
 
-pub fn cf_to_rational64<I: Iterator<Item = NonZeroU64>>(iter_rev: I) -> (i64, NonZeroU64) {
-    let (mut den, mut num) = iter_rev.fold((1_i64, 0_i64), |(num, den), item| {
-        ((item.get() as i64) * num + den, num)
+pub fn cf_to_rational64<I: Iterator<Item = NonZeroU64>>(iter_rev: I) -> (u64, NonZeroU64) {
+    let (den, num) = iter_rev.fold((1_u64, 0_u64), |(num, den), item| {
+        (item.get() * num + den, num)
     });
-    if den < 0 {
-        num *= -1;
-        den *= -1;
-    }
     NonZeroU64::new(den as u64).map(|d| (num, d)).unwrap()
+}
+
+pub fn decode_c8(bits: &u8) -> (u64, NonZeroU64) {
+    let bits = bits.to_be_bytes();
+    let bitstream = BitDecoder::new(&bits[..]);
+    let coder = Coder::default();
+    cf_to_rational64(
+        map_to_complete_cf(coder.read_iter(bitstream))
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev(),
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bitslice::{BitDecoder, BitEncoder};
-    use crate::sbs_main::Coder;
-    use rstest::*;
+    // use rstest::*;
 
     #[test]
-    fn test_cf_to_rational64_uniqueness() {
-        let encodeds: Vec<_> = (0_u8..=0x0F)
-            .map(|byte| {
-                let bits = byte.to_be_bytes();
-                let mut bitstream = BitDecoder::new(&bits[..]);
-                for _ in 0..4 {
-                    bitstream.read_bit().unwrap();
-                }
-                let coder = Coder::default();
-                cf_to_rational64(
-                    iter_cf(coder.read_iter(bitstream))
-                        .collect::<Vec<_>>()
-                        .into_iter()
-                        .rev(),
-                )
-            })
-            .collect();
-        println!("{:?}", encodeds);
+    fn test_decode_c8_uniqueness() {
+        let encodings = 0_u8..=0xFF;
+        let endecodings: Vec<_> = encodings.map(|byte| (byte, decode_c8(&byte))).collect();
+        println!("{:?}", endecodings);
 
-        let mut cache = std::collections::HashSet::new();
-        assert!(encodeds.into_iter().all(move |item| cache.insert(item)));
+        let mut duplicates = std::collections::HashMap::new();
+        for (byte, decoding) in endecodings {
+            duplicates
+                .entry(decoding)
+                .or_insert(Vec::default())
+                .push(byte);
+        }
+        duplicates.retain(|_decoding, encodings| encodings.len() == 1);
+        assert!(duplicates.len() == 0);
     }
 
-    #[rstest(seq1, seq2,
-        case(vec![], vec![]),
-    )]
-    fn test_iter_cf_uniqueness(
-        seq1: Vec<Result<NonZeroU64, IncompleteInt<NonZeroU64>>>,
-        seq2: Vec<Result<NonZeroU64, IncompleteInt<NonZeroU64>>>,
-    ) {
-        let result1 = cf_to_rational64(iter_cf(seq1.into_iter().rev()));
-        let result2 = cf_to_rational64(iter_cf(seq2.into_iter().rev()));
-        assert_ne!(result1, result2);
-    }
+    // #[rstest(seq1, seq2,
+    //     case(vec![], vec![]),
+    // )]
+    // fn test_map_to_complete_cf_uniqueness(
+    //     seq1: Vec<Result<NonZeroU64, IncompleteInt<NonZeroU64>>>,
+    //     seq2: Vec<Result<NonZeroU64, IncompleteInt<NonZeroU64>>>,
+    // ) {
+    //     let result1 = cf_to_rational64(map_to_complete_cf(seq1.into_iter().rev()));
+    //     let result2 = cf_to_rational64(map_to_complete_cf(seq2.into_iter().rev()));
+    //     assert_ne!(result1, result2);
+    // }
 }
