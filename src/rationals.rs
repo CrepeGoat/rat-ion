@@ -17,7 +17,7 @@ pub fn map_to_complete_cf<I: Iterator<Item = Result<NonZeroU64, IncompleteInt<No
             // - the scheme should prefer to first cover all smaller-denominator values
             //   -> each ambiguous encoding should have the smallest denominator possible
             // https://en.wikipedia.org/wiki/Continued_fraction#Best_rational_within_an_interval
-            NonZeroU64::new(max(range.start().get(), 2))
+            NonZeroU64::new(range.start().get() + 1)
         }
     })
 }
@@ -50,7 +50,7 @@ mod tests {
     fn test_decode_c8_uniqueness() {
         let encodings = 0_u8..=0xFF;
         let endecodings: Vec<_> = encodings.map(|byte| (byte, decode_c8(&byte))).collect();
-        println!("{:?}", endecodings);
+        // println!("{:?}", endecodings);
 
         let mut duplicates = std::collections::HashMap::new();
         for (byte, decoding) in endecodings {
@@ -59,7 +59,9 @@ mod tests {
                 .or_insert(Vec::default())
                 .push(byte);
         }
-        duplicates.retain(|_decoding, encodings| encodings.len() == 1);
+        duplicates.retain(|_decoding, encodings| encodings.len() > 1);
+        println!("{:?}", duplicates.len());
+        println!("{:X?}", duplicates);
         assert!(duplicates.len() == 0);
     }
 

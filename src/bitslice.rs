@@ -30,7 +30,7 @@ impl<'a> BitDecoder<'a> {
     #[inline]
     fn validate_len(&self, count: usize) -> Result<(), usize> {
         if self.bits_left() < count {
-            Err(self.bits_left())
+            Err(count - self.bits_left())
         } else {
             Ok(())
         }
