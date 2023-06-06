@@ -3,8 +3,11 @@ use core::ops::{RangeBounds, RangeFrom, RangeInclusive};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IncompleteInt<T> {
-    Unbounded(RangeFrom<T>),
-    Bounded(RangeInclusive<T>, NonZeroUsize),
+    Unbounded(RangeFrom<T>), // the range in which the next value falls
+    Bounded(
+        RangeInclusive<T>, // the range in which the next value falls
+        NonZeroUsize,      // the number of additional bits needed to determine the next value
+    ),
 }
 
 impl<T> RangeBounds<T> for IncompleteInt<T> {

@@ -2,7 +2,6 @@ use crate::bitslice::BitDecoder;
 use crate::sbs_main::Coder;
 use crate::utils::IncompleteInt;
 
-use core::cmp::max;
 use core::num::NonZeroU64;
 
 pub fn map_to_complete_cf<I: Iterator<Item = Result<NonZeroU64, IncompleteInt<NonZeroU64>>>>(
@@ -10,7 +9,7 @@ pub fn map_to_complete_cf<I: Iterator<Item = Result<NonZeroU64, IncompleteInt<No
 ) -> impl Iterator<Item = NonZeroU64> {
     iter.filter_map(|inc_int| match inc_int {
         Ok(value) => Some(value),
-        Err(IncompleteInt::Unbounded(_)) => None,
+        Err(IncompleteInt::Unbounded(range)) => NonZeroU64::new(range.start.get() + 1),
         Err(IncompleteInt::Bounded(range, _)) => {
             // Goal: for a given bit count `n`:
             // - each encoding should be unique
@@ -45,6 +44,28 @@ pub fn decode_c8(bits: &u8) -> (u64, NonZeroU64) {
 mod tests {
     use super::*;
     // use rstest::*;
+
+    #[test]
+    fn test_parse_uniqueness() {
+        let encodings = 0_u8..=0xFF;
+        let endecodings: Vec<_> = encodings
+            .map(|byte| {
+                let bits = byte.to_be_bytes();
+                let bitstream = BitDecoder::new(&bits[..]);
+                let coder = Coder::default();
+                let symbols: Vec<_> = coder.read_iter(bitstream).collect();
+
+                (byte, symbols)
+            })
+            .collect();
+
+        for (byte, symbols) in endecodings.iter() {
+            println!("{:b}: {:?}", byte, symbols);
+            for (_byte2, symbols2) in endecodings.iter().skip((*byte) as usize + 1) {
+                assert!(symbols != symbols2);
+            }
+        }
+    }
 
     #[test]
     fn test_decode_c8_uniqueness() {

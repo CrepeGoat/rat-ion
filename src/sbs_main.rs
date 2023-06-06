@@ -90,7 +90,18 @@ impl Coder {
         mut self,
         mut bitstream: BitDecoder,
     ) -> impl Iterator<Item = Result<NonZeroU64, IncompleteInt<NonZeroU64>>> + '_ {
-        core::iter::from_fn(move || (!bitstream.is_empty()).then(|| self.read(&mut bitstream)))
+        let mut is_done: bool = false;
+        core::iter::from_fn(move || {
+            if is_done {
+                None
+            } else {
+                let item = self.read(&mut bitstream);
+                if item.is_err() {
+                    is_done = true;
+                }
+                Some(item)
+            }
+        })
     }
 
     pub fn write_iter<I: Iterator<Item = NonZeroU64>>(
