@@ -9,14 +9,14 @@ pub fn map_to_complete_cf<I: Iterator<Item = Result<NonZeroU64, IncompleteInt<No
 ) -> impl Iterator<Item = NonZeroU64> {
     iter.filter_map(|inc_int| match inc_int {
         Ok(value) => Some(value),
-        Err(IncompleteInt::Unbounded(range)) => NonZeroU64::new(range.start.get() + 1),
+        Err(IncompleteInt::Unbounded(_range)) => None,
         Err(IncompleteInt::Bounded(range, _)) => {
             // Goal: for a given bit count `n`:
             // - each encoding should be unique
             // - the scheme should prefer to first cover all smaller-denominator values
             //   -> each ambiguous encoding should have the smallest denominator possible
             // https://en.wikipedia.org/wiki/Continued_fraction#Best_rational_within_an_interval
-            NonZeroU64::new(range.start().get() + 1)
+            Some(NonZeroU64::new(range.start().get() + 1).unwrap())
         }
     })
 }
@@ -83,7 +83,51 @@ mod tests {
         duplicates.retain(|_decoding, encodings| encodings.len() > 1);
         println!("{:?}", duplicates.len());
         println!("{:X?}", duplicates);
+
         assert!(duplicates.len() == 0);
+    }
+
+    #[test]
+    fn test_decode_c8_uniqueness_case1() {
+        let encodes = [0x1Fu8, 0x9Fu8];
+
+        let symbols = encodes.map(|enc| {
+            let bits = enc.to_be_bytes();
+            let bitstream = BitDecoder::new(&bits[..]);
+            let coder = Coder::default();
+            let symbols: Vec<_> = coder.read_iter(bitstream).collect();
+
+            symbols
+        });
+
+        for i in 0..2 {
+            println!("{:b}: {:?}", encodes[i], symbols[i]);
+        }
+
+        let decodes = symbols.map(|sym| {
+            cf_to_rational64(
+                map_to_complete_cf(sym.into_iter())
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .rev(),
+            )
+        });
+
+        assert!(decodes[0] != decodes[1]);
+    }
+
+    #[test]
+    fn test_decode_c8_completeness() {
+        let encodings = 0_u8..=0xFF;
+        let decodings: Vec<_> = encodings.map(|byte| decode_c8(&byte)).collect();
+
+        for denom in [2, 3] {
+            for numer in 1..denom {
+                assert!(decodings
+                    .iter()
+                    .any(|decoding| *decoding == (numer, NonZeroU64::new(denom).unwrap())));
+            }
+        }
     }
 
     // #[rstest(seq1, seq2,
