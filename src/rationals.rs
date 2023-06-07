@@ -7,17 +7,29 @@ use core::num::NonZeroU64;
 pub fn map_to_complete_cf<I: Iterator<Item = Result<NonZeroU64, IncompleteInt<NonZeroU64>>>>(
     iter: I,
 ) -> impl Iterator<Item = NonZeroU64> {
-    iter.filter_map(|inc_int| match inc_int {
-        Ok(value) => Some(value),
-        Err(IncompleteInt::Unbounded(_range)) => None,
-        Err(IncompleteInt::Bounded(range, _)) => {
-            // Goal: for a given bit count `n`:
-            // - each encoding should be unique
-            // - the scheme should prefer to first cover all smaller-denominator values
-            //   -> each ambiguous encoding should have the smallest denominator possible
-            // https://en.wikipedia.org/wiki/Continued_fraction#Best_rational_within_an_interval
-            Some(NonZeroU64::new(range.start().get() + 1).unwrap())
-        }
+    let mut prev_items: [Option<I::Item>; 2] = [None, None];
+    iter.filter_map(move |inc_int| {
+        let result = match &inc_int {
+            &Ok(value) => Some(value),
+            Err(IncompleteInt::Unbounded(range)) => {
+                // Each encoding should be unique
+                //   -> change [..., n, 1, inf] to resolve differently from [..., n+1, inf]
+                if prev_items[1] != None && prev_items[0] == Some(Ok(NonZeroU64::new(1).unwrap())) {
+                    Some(NonZeroU64::new(range.start.get() + 1).unwrap())
+                } else {
+                    None
+                }
+            }
+            Err(IncompleteInt::Bounded(range, _)) => {
+                // Encodings should prefer to first cover all smaller-denominator values
+                //   -> each ambiguous encoding should have the smallest denominator possible
+                // https://en.wikipedia.org/wiki/Continued_fraction#Best_rational_within_an_interval
+                Some(NonZeroU64::new(range.start().get() + 1).unwrap())
+            }
+        };
+        prev_items[1] = prev_items[0].clone();
+        prev_items[0] = Some(inc_int);
+        result
     })
 }
 
