@@ -54,92 +54,56 @@ pub fn decode_c8(bits: &u8) -> (u64, NonZeroU64) {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::*;
     // use rstest::*;
 
     #[test]
-    fn test_parse_uniqueness() {
-        let encodings = 0_u8..=0xFF;
-        let endecodings: Vec<_> = encodings
-            .map(|byte| {
-                let bits = byte.to_be_bytes();
-                let bitstream = BitDecoder::new(&bits[..]);
-                let coder = Coder::default();
-                let symbols: Vec<_> = coder.read_iter(bitstream).collect();
-
-                (byte, symbols)
-            })
-            .collect();
-
-        for (byte, symbols) in endecodings.iter() {
-            println!("{:b}: {:?}", byte, symbols);
-            for (_byte2, symbols2) in endecodings.iter().skip((*byte) as usize + 1) {
-                assert!(symbols != symbols2);
-            }
-        }
-    }
-
-    #[test]
     fn test_decode_c8_uniqueness() {
         let encodings = 0_u8..=0xFF;
-        let endecodings: Vec<_> = encodings.map(|byte| (byte, decode_c8(&byte))).collect();
-        // println!("{:?}", endecodings);
+        let mut decodings = encodings.map(|byte| decode_c8(&byte));
 
-        let mut duplicates = std::collections::HashMap::new();
-        for (byte, decoding) in endecodings {
-            duplicates
-                .entry(decoding)
-                .or_insert(Vec::default())
-                .push(byte);
-        }
-        duplicates.retain(|_decoding, encodings| encodings.len() > 1);
-        println!("{:?}", duplicates.len());
-        println!("{:X?}", duplicates);
-
-        assert!(duplicates.len() == 0);
+        let mut duplicates = std::collections::HashSet::new();
+        assert!(decodings.all(|decoding| duplicates.insert(decoding)));
     }
 
     #[test]
-    fn test_decode_c8_uniqueness_case1() {
-        let encodes = [0x1Fu8, 0x9Fu8];
-
-        let symbols = encodes.map(|enc| {
-            let bits = enc.to_be_bytes();
-            let bitstream = BitDecoder::new(&bits[..]);
-            let coder = Coder::default();
-            let symbols: Vec<_> = coder.read_iter(bitstream).collect();
-
-            symbols
-        });
-
-        for i in 0..2 {
-            println!("{:b}: {:?}", encodes[i], symbols[i]);
-        }
-
-        let decodes = symbols.map(|sym| {
-            cf_to_rational64(
-                map_to_complete_cf(sym.into_iter())
-                    .collect::<Vec<_>>()
-                    .into_iter()
-                    .rev(),
-            )
-        });
-
-        assert!(decodes[0] != decodes[1]);
-    }
-
-    #[test]
-    fn test_decode_c8_completeness() {
+    fn test_decode_c8_denominator_11_completeness() {
+        const LARGEST_COVERED_DENOMINATOR: u64 = 11;
         let encodings = 0_u8..=0xFF;
-        let decodings: Vec<_> = encodings.map(|byte| decode_c8(&byte)).collect();
+        let decodings: HashSet<_> = encodings.map(|byte| decode_c8(&byte)).collect();
 
-        for denom in [2, 3] {
+        for denom in 1..=LARGEST_COVERED_DENOMINATOR {
             for numer in 1..denom {
-                assert!(decodings
-                    .iter()
-                    .any(|decoding| *decoding == (numer, NonZeroU64::new(denom).unwrap())));
+                if gcd(numer, denom) != 1 {
+                    continue;
+                }
+                assert!(decodings.contains(&(numer, NonZeroU64::new(denom).unwrap())));
             }
+            println!("denominator {:?} covered!", denom);
         }
+    }
+
+    #[test]
+    fn test_gcd() {
+        assert_eq!(gcd(5, 0), 5); // this behavior is used above -> do NOT remove!
+
+        assert_eq!(gcd(5, 2), 1);
+        assert_eq!(gcd(2, 5), 1);
+
+        assert_eq!(gcd(128, 36), 4);
+    }
+
+    fn gcd(mut a: u64, mut b: u64) -> u64 {
+        if b < a {
+            std::mem::swap(&mut a, &mut b);
+        }
+        while a > 0 {
+            b %= a;
+            std::mem::swap(&mut a, &mut b);
+        }
+        b
     }
 
     // #[rstest(seq1, seq2,
