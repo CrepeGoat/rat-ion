@@ -208,6 +208,7 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
+    use proptest::*;
     // use rstest::*;
 
     #[test]
@@ -282,18 +283,33 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn test_c32_decode_encode_inverse() {
-    //     let encodings: Vec<_> = (u32::MIN..=u32::MAX).collect();
-    //     let decodings = encodings.iter().map(|&word| decode_c32(&word));
-    //     let encodings2: Vec<_> = decodings
-    //         .map(|(numerator, denominator)| {
-    //             encode_c32(numerator, denominator).unwrap_or_else(|x| x)
-    //         })
-    //         .collect();
+    proptest! {
+        #[test]
+        fn test_c32_decode_encode_inverse(encoding in u32::MIN..=u32::MAX) {
+            let (numerator, denominator) = decode_c32(&encoding);
+            let encoding2 = encode_c32(numerator, denominator).unwrap_or_else(|x| x);
 
-    //     assert_eq!(encodings, encodings2);
-    // }
+            assert_eq!(encoding, encoding2);
+        }
+
+        #[test]
+        fn test_c32_denominator_13859_completeness(denominator in 1_u64..=13859) {
+            for numerator in 1..denominator {
+                if gcd(numerator, denominator) != 1 {
+                    continue;
+                }
+                assert!(encode_c32(numerator, NonZeroU64::new(denominator).unwrap()).is_ok());
+            }
+        }
+
+        #[test]
+        fn test_c64_decode_encode_inverse(encoding in u64::MIN..=u64::MAX) {
+            let (numerator, denominator) = decode_c64(&encoding);
+            let encoding2 = encode_c64(numerator, denominator).unwrap_or_else(|x| x);
+
+            assert_eq!(encoding, encoding2);
+        }
+    }
 
     // #[test]
     // fn test_decode_c32_uniqueness() {
@@ -302,34 +318,6 @@ mod tests {
 
     //     let mut duplicates = HashSet::new();
     //     assert!(decodings.all(|decoding| duplicates.insert(decoding)));
-    // }
-
-    // #[test]
-    // fn test_c32_denominator_13859_completeness() {
-    //     const LARGEST_COVERED_DENOMINATOR: u64 = 13859;
-
-    //     for denom in 1..=LARGEST_COVERED_DENOMINATOR {
-    //         for numer in 1..denom {
-    //             if gcd(numer, denom) != 1 {
-    //                 continue;
-    //             }
-    //             assert!(encode_c32(numer, NonZeroU64::new(denom).unwrap()).is_ok());
-    //         }
-    //         println!("denominator {:?} covered!", denom);
-    //     }
-    // }
-
-    // #[test]
-    // fn test_c64_decode_encode_inverse() {
-    //     let encodings: Vec<_> = (u64::MIN..=u64::MAX).collect();
-    //     let decodings = encodings.iter().map(|&word| decode_c64(&word));
-    //     let encodings2: Vec<_> = decodings
-    //         .map(|(numerator, denominator)| {
-    //             encode_c64(numerator, denominator).unwrap_or_else(|x| x)
-    //         })
-    //         .collect();
-
-    //     assert_eq!(encodings, encodings2);
     // }
 
     // #[test]
@@ -342,7 +330,7 @@ mod tests {
     // }
 
     // #[test]
-    // fn test_c64_denominator_13859_completeness() {
+    // fn test_c64_denominator_n_completeness() {
     //     const LARGEST_COVERED_DENOMINATOR: u64 = 13859;
 
     //     for denom in 1..=LARGEST_COVERED_DENOMINATOR {
