@@ -63,7 +63,8 @@ pub(crate) mod encode {
         if let Err(_e) = bitstream.write_bit(vlen_next_bit) {
             return Err(IncompleteInt::Bounded(
                 decode::from_full_length_indicator(vlen_prefix),
-                NonZeroUsize::new(1 + decode::suffix_len(vlen_prefix, true)).unwrap(),
+                NonZeroUsize::new(1 + decode::suffix_len(vlen_prefix, true))
+                    .expect("known to be non-zero"),
             ));
         }
 
@@ -79,7 +80,7 @@ pub(crate) mod encode {
                             (suffix_len - sublen - 1),
                         ),
                     ),
-                    NonZeroUsize::new(sublen + 1).unwrap(),
+                    NonZeroUsize::new(sublen + 1).expect("known to be non-zero"),
                 ));
             }
         }
@@ -117,15 +118,17 @@ pub(crate) mod decode {
     #[inline]
     pub(super) fn from_partial_length_indicator(min_vlen_prefix: usize) -> RangeFrom<NonZeroU64> {
         RangeFrom {
-            start: NonZeroU64::new(flen_prefix_bits(min_vlen_prefix, false)).unwrap(),
+            start: NonZeroU64::new(flen_prefix_bits(min_vlen_prefix, false))
+                .expect("known to be non-zero"),
         }
     }
 
     #[inline]
     pub(super) fn from_full_length_indicator(vlen_prefix: usize) -> RangeInclusive<NonZeroU64> {
         RangeInclusive::new(
-            NonZeroU64::new(flen_prefix_bits(vlen_prefix, false)).unwrap(),
-            NonZeroU64::new(flen_prefix_bits(vlen_prefix + 1, false) - 1).unwrap(),
+            NonZeroU64::new(flen_prefix_bits(vlen_prefix, false)).expect("known to be non-zero"),
+            NonZeroU64::new(flen_prefix_bits(vlen_prefix + 1, false) - 1)
+                .expect("known to be non-zero"),
         )
     }
 
@@ -143,8 +146,10 @@ pub(crate) mod decode {
         let needed_len = suffix_len - partial_len;
 
         RangeInclusive::new(
-            NonZeroU64::new(flen_prefix_bits | (partial_bits << needed_len)).unwrap(),
-            NonZeroU64::new(flen_prefix_bits | (((partial_bits + 1) << needed_len) - 1)).unwrap(),
+            NonZeroU64::new(flen_prefix_bits | (partial_bits << needed_len))
+                .expect("known to be non-zero"),
+            NonZeroU64::new(flen_prefix_bits | (((partial_bits + 1) << needed_len) - 1))
+                .expect("known to be non-zero"),
         )
     }
 
@@ -154,7 +159,7 @@ pub(crate) mod decode {
         let flen_prefix_bits = flen_prefix_bits(vlen_prefix, next_bit);
         let suffix_bits = masked_suffix(suffix_bits, suffix_len);
 
-        NonZeroU64::new(flen_prefix_bits | suffix_bits).unwrap()
+        NonZeroU64::new(flen_prefix_bits | suffix_bits).expect("known to be non-zero")
     }
 
     pub(crate) fn read(
@@ -173,7 +178,7 @@ pub(crate) mod decode {
         let first_digit = bitstream.read_bit().map_err(|_| {
             IncompleteInt::Bounded(
                 from_full_length_indicator(vlen_prefix),
-                NonZeroUsize::new(1 + suffix_len(vlen_prefix, true)).unwrap(),
+                NonZeroUsize::new(1 + suffix_len(vlen_prefix, true)).expect("known to be non-zero"),
             )
         })?;
 
@@ -184,7 +189,8 @@ pub(crate) mod decode {
             let bit = bitstream.read_bit().map_err(|_| {
                 IncompleteInt::Bounded(
                     from_full_prefix(vlen_prefix, first_digit, (suffix_bits, sublen)),
-                    NonZeroUsize::new(suffix_len - sublen).unwrap(),
+                    NonZeroUsize::new(suffix_len - sublen)
+                        .expect("checked that suffix_len > sublen"),
                 )
             })?;
             suffix_bits <<= 1;

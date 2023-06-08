@@ -1,8 +1,9 @@
-use crate::bitslice::BitDecoder;
+use crate::bitslice::{BitDecoder, BitEncoder};
 use crate::sbs_main::Coder;
 use crate::utils::IncompleteInt;
 
 use core::num::NonZeroU64;
+use std::mem::size_of;
 
 pub fn map_to_complete_cf<I: Iterator<Item = Result<NonZeroU64, IncompleteInt<NonZeroU64>>>>(
     iter: I,
@@ -14,8 +15,10 @@ pub fn map_to_complete_cf<I: Iterator<Item = Result<NonZeroU64, IncompleteInt<No
             Err(IncompleteInt::Unbounded(range)) => {
                 // Each encoding should be unique
                 //   -> change [..., n, 1, inf] to resolve differently from [..., n+1, inf]
-                if prev_items[1] != None && prev_items[0] == Some(Ok(NonZeroU64::new(1).unwrap())) {
-                    Some(NonZeroU64::new(range.start.get() + 1).unwrap())
+                if prev_items[1] != None
+                    && prev_items[0] == Some(Ok(NonZeroU64::new(1).expect("known to be non-zero")))
+                {
+                    Some(NonZeroU64::new(range.start.get() + 1).expect("known to be non-zero"))
                 } else {
                     None
                 }
@@ -24,7 +27,7 @@ pub fn map_to_complete_cf<I: Iterator<Item = Result<NonZeroU64, IncompleteInt<No
                 // Encodings should prefer to first cover all smaller-denominator values
                 //   -> each ambiguous encoding should have the smallest denominator possible
                 // https://en.wikipedia.org/wiki/Continued_fraction#Best_rational_within_an_interval
-                Some(NonZeroU64::new(range.start().get() + 1).unwrap())
+                Some(NonZeroU64::new(range.start().get() + 1).expect("known to be non-zero"))
             }
         };
         prev_items[1] = prev_items[0].clone();
@@ -37,7 +40,10 @@ pub fn cf_to_rational64<I: Iterator<Item = NonZeroU64>>(iter_rev: I) -> (u64, No
     let (den, num) = iter_rev.fold((1_u64, 0_u64), |(num, den), item| {
         (item.get() * num + den, num)
     });
-    NonZeroU64::new(den as u64).map(|d| (num, d)).unwrap()
+    (
+        num,
+        NonZeroU64::new(den as u64).expect("starts at 1 & increases"),
+    )
 }
 
 pub fn decode_c8(bits: &u8) -> (u64, NonZeroU64) {

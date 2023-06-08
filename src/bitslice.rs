@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use crate::masked_bits::MaskedBits;
 
 #[inline(always)]
@@ -28,9 +30,9 @@ impl<'a> BitDecoder<'a> {
     }
 
     #[inline]
-    fn validate_len(&self, count: usize) -> Result<(), usize> {
+    fn validate_len(&self, count: usize) -> Result<(), NonZeroUsize> {
         if self.bits_left() < count {
-            Err(count - self.bits_left())
+            Err(NonZeroUsize::new(count - self.bits_left()).expect("known to be non-zero"))
         } else {
             Ok(())
         }
@@ -44,17 +46,18 @@ impl<'a> BitDecoder<'a> {
     //     ))
     // }
 
-    pub fn skip_bits(&mut self, count: usize) -> Result<(), usize> {
+    pub fn skip_bits(&mut self, count: usize) -> Result<(), NonZeroUsize> {
         self.validate_len(count)?;
         self.bits = &self.bits[((count + self.bit_offset as usize) / 8)..];
         self.bit_offset = ((count + self.bit_offset as usize) % 8) as u32;
         Ok(())
     }
 
-    pub fn read_bit(&mut self) -> Result<bool, usize> {
+    pub fn read_bit(&mut self) -> Result<bool, NonZeroUsize> {
         self.validate_len(1)?;
         let result = masked_bit(self.bits[0], 7 - self.bit_offset);
-        self.skip_bits(1).unwrap();
+        self.skip_bits(1)
+            .expect("length already guaranteed to be at least 1");
         Ok(result)
     }
 }
@@ -82,24 +85,20 @@ impl<'a> BitEncoder<'a> {
     }
 
     #[inline]
-    fn validate_len(&self, count: usize) -> Result<(), usize> {
+    fn validate_len(&self, count: usize) -> Result<(), NonZeroUsize> {
         if self.bits_left() < count {
-            Err(self.bits_left())
+            Err(NonZeroUsize::new(count - self.bits_left()).expect("known to be non-zero"))
         } else {
             Ok(())
         }
     }
 
-    fn bitarray(&mut self) -> Result<MaskedBits<&mut u8>, usize> {
-        Ok(MaskedBits::new(
-            self.bits.first_mut().ok_or(0_usize)?,
-            self.bit_offset,
-            0,
-        ))
+    fn bitarray(&mut self) -> Option<MaskedBits<&mut u8>> {
+        Some(MaskedBits::new(self.bits.first_mut()?, self.bit_offset, 0))
     }
 
     #[inline]
-    fn advance(&mut self, count: usize) -> Result<(), usize> {
+    fn advance(&mut self, count: usize) -> Result<(), NonZeroUsize> {
         self.validate_len(count)?;
         self.bits = &mut core::mem::replace(&mut self.bits, &mut [][..]) // <- avoids multiple &mut's at once
             [((count + self.bit_offset as usize) / 8)..];
@@ -108,11 +107,10 @@ impl<'a> BitEncoder<'a> {
     }
 
     pub fn write_bit(&mut self, bit: bool) -> Result<(), usize> {
-        self.bitarray()?.trim_trailing_to(1).assign(MaskedBits::new(
-            if bit { 0xFF } else { 0x00 },
-            7,
-            0,
-        ));
+        self.bitarray()
+            .ok_or(NonZeroUsize::new(1).expect("known to be non-zero"))?
+            .trim_trailing_to(1)
+            .assign(MaskedBits::new(if bit { 0xFF } else { 0x00 }, 7, 0));
         self.advance(1)?;
 
         Ok(())
@@ -139,7 +137,7 @@ mod tests {
             // Write bits
             let mut writer = BitEncoder::new(&mut new_bits);
             for bit in bit_buffer.into_iter() {
-                writer.write_bit(bit).unwrap();
+                writer.write_bit(bit).expect("can write the same number of bits read");
             }
 
             assert_eq!(new_bits, bits);

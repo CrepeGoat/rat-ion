@@ -30,14 +30,17 @@ pub(crate) mod encode {
         bitstream: &mut BitEncoder,
         value: NonZeroU64,
     ) -> Result<(), IncompleteInt<NonZeroU64>> {
-        bitstream
-            .write_bit(value.get() > 1)
-            .map_err(|_| IncompleteInt::new_unbounded(NonZeroU64::new(1).unwrap()))?;
+        bitstream.write_bit(value.get() > 1).map_err(|_| {
+            IncompleteInt::new_unbounded(NonZeroU64::new(1).expect("known to be non-zero"))
+        })?;
         if value.get() == 1 {
             Ok(())
         } else {
-            sbs_utils::encode::write(bitstream, NonZeroU64::new(value.get() + 1).unwrap())
-                .map_err(translate_err)
+            sbs_utils::encode::write(
+                bitstream,
+                NonZeroU64::new(value.get() + 1).expect("known to be non-zero"),
+            )
+            .map_err(translate_err)
         }
     }
 
@@ -51,9 +54,9 @@ pub(crate) mod decode {
     pub(crate) fn read(
         bitstream: &mut BitDecoder,
     ) -> Result<NonZeroU64, IncompleteInt<NonZeroU64>> {
-        let first_bit = bitstream
-            .read_bit()
-            .map_err(|_| IncompleteInt::new_unbounded(NonZeroU64::new(1).unwrap()))?;
+        let first_bit = bitstream.read_bit().map_err(|_| {
+            IncompleteInt::new_unbounded(NonZeroU64::new(1).expect("known to be non-zero"))
+        })?;
         if first_bit {
             match sbs_utils::decode::read(bitstream) {
                 Ok(result) => Ok(NonZeroU64::new(result.get() - 1).unwrap()),

@@ -11,18 +11,21 @@ pub(crate) mod encode {
         bitstream: &mut BitEncoder,
         value: NonZeroU64,
     ) -> Result<(), IncompleteInt<NonZeroU64>> {
-        bitstream
-            .write_bit(value.get() > 2)
-            .map_err(|_| IncompleteInt::new_unbounded(NonZeroU64::new(1).unwrap()))?;
+        bitstream.write_bit(value.get() > 2).map_err(|_| {
+            IncompleteInt::new_unbounded(NonZeroU64::new(1).expect("known to be non-zero"))
+        })?;
         if value.get() <= 2 {
             bitstream.write_bit(value.get() > 1).map_err(|needed| {
                 IncompleteInt::new_bounded(
-                    (NonZeroU64::new(1).unwrap(), NonZeroU64::new(2).unwrap()),
+                    (
+                        NonZeroU64::new(1).expect("known to be non-zero"),
+                        NonZeroU64::new(2).expect("known to be non-zero"),
+                    ),
                     NonZeroUsize::new(needed).unwrap(),
                 )
             })
         } else {
-            sbs_utils::encode::write(bitstream, NonZeroU64::new(value.get()).unwrap())
+            sbs_utils::encode::write(bitstream, value)
         }
     }
 
@@ -37,19 +40,22 @@ pub(crate) mod decode {
     pub(crate) fn read(
         bitstream: &mut BitDecoder,
     ) -> Result<NonZeroU64, IncompleteInt<NonZeroU64>> {
-        let first_bit = bitstream
-            .read_bit()
-            .map_err(|_| IncompleteInt::new_unbounded(NonZeroU64::new(1).unwrap()))?;
+        let first_bit = bitstream.read_bit().map_err(|_| {
+            IncompleteInt::new_unbounded(NonZeroU64::new(1).expect("known to be non-zero"))
+        })?;
         if first_bit {
             sbs_utils::decode::read(bitstream)
         } else {
             let second_bit = bitstream.read_bit().map_err(|needed| {
                 IncompleteInt::new_bounded(
-                    (NonZeroU64::new(1).unwrap(), NonZeroU64::new(2).unwrap()),
-                    NonZeroUsize::new(needed).unwrap(),
+                    (
+                        NonZeroU64::new(1).expect("known to be non-zero"),
+                        NonZeroU64::new(2).expect("known to be non-zero"),
+                    ),
+                    needed,
                 )
             })?;
-            Ok(NonZeroU64::new(second_bit as u64 + 1).unwrap())
+            Ok(NonZeroU64::new(second_bit as u64 + 1).expect("known to be non-zero"))
         }
     }
 }
