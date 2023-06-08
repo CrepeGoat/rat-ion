@@ -36,6 +36,27 @@ pub fn map_to_complete_cf<I: Iterator<Item = Result<NonZeroU64, IncompleteInt<No
     })
 }
 
+pub fn rational64_to_cf(
+    mut numerator: u64,
+    denominator: NonZeroU64,
+) -> impl Iterator<Item = NonZeroU64> {
+    let mut denominator = denominator.get();
+    if numerator > denominator {
+        panic!(
+            "fraction must be between 0 and 1; got ({:?} / {:?})",
+            numerator, denominator
+        );
+    }
+    std::iter::from_fn(move || {
+        if numerator <= 0 {
+            return None;
+        }
+        let next_value = NonZeroU64::new(denominator / numerator).expect("checked that den > num");
+        (numerator, denominator) = (denominator % numerator, numerator);
+        Some(next_value)
+    })
+}
+
 pub fn cf_to_rational64<I: Iterator<Item = NonZeroU64>>(iter_rev: I) -> (u64, NonZeroU64) {
     let (den, num) = iter_rev.fold((1_u64, 0_u64), |(num, den), item| {
         (item.get() * num + den, num)
@@ -44,6 +65,28 @@ pub fn cf_to_rational64<I: Iterator<Item = NonZeroU64>>(iter_rev: I) -> (u64, No
         num,
         NonZeroU64::new(den as u64).expect("starts at 1 & increases"),
     )
+}
+
+pub fn encode_c8(numerator: u64, denominator: NonZeroU64) -> Result<u8, u8> {
+    let mut bits: [u8; size_of::<u8>()] = [0];
+    let mut bitstream = BitEncoder::new(&mut bits[..]);
+    let mut coder = Coder::default();
+    let mut is_truncated: bool = false;
+
+    for value in rational64_to_cf(numerator, denominator) {
+        if coder.write(&mut bitstream, value).is_err() {
+            is_truncated = true;
+            break;
+        }
+    }
+    coder.write_inf(&mut bitstream);
+
+    let result = u8::from_be_bytes(bits);
+    if is_truncated {
+        Err(result)
+    } else {
+        Ok(result)
+    }
 }
 
 pub fn decode_c8(bits: &u8) -> (u64, NonZeroU64) {
@@ -64,6 +107,17 @@ mod tests {
 
     use super::*;
     // use rstest::*;
+
+    #[test]
+    fn test_c8_decode_encode_inverse() {
+        let encodings: Vec<_> = (0_u8..=0xFF).collect();
+        let decodings = encodings.iter().map(|&byte| decode_c8(&byte));
+        let encodings2: Vec<_> = decodings
+            .map(|(numerator, denominator)| encode_c8(numerator, denominator).unwrap_or_else(|x| x))
+            .collect();
+
+        assert_eq!(encodings, encodings2);
+    }
 
     #[test]
     fn test_decode_c8_uniqueness() {
