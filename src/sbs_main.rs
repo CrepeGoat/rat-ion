@@ -4,20 +4,6 @@ use crate::{sbs1, sbs2};
 
 use core::num::NonZeroU64;
 
-/*
-mod encode {
-    use super::*;
-
-    fn fits_next(value: u64) -> bool {
-        unimplemented!()
-    }
-
-    fn write(value: u64) {
-        unimplemented!()
-    }
-}
-*/
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum SbsMarker {
     Mode1,
@@ -53,13 +39,16 @@ impl RhoRegion {
     }
 }
 
+impl Default for RhoRegion {
+    fn default() -> Self {
+        Self::Eq0
+    }
+}
+
+#[derive(Debug, Copy, Clone, Default)]
 pub struct Coder(RhoRegion);
 
 impl Coder {
-    pub fn new() -> Self {
-        Self(RhoRegion::Eq0)
-    }
-
     pub fn write(
         &mut self,
         bitstream: &mut BitEncoder,
@@ -95,6 +84,36 @@ impl Coder {
         self.0 = self.0.next(result);
 
         Ok(result)
+    }
+
+    pub fn read_iter(
+        mut self,
+        mut bitstream: BitDecoder,
+    ) -> impl Iterator<Item = Result<NonZeroU64, IncompleteInt<NonZeroU64>>> + '_ {
+        let mut is_done: bool = false;
+        core::iter::from_fn(move || {
+            if is_done {
+                None
+            } else {
+                let item = self.read(&mut bitstream);
+                if item.is_err() {
+                    is_done = true;
+                }
+                Some(item)
+            }
+        })
+    }
+
+    pub fn write_iter<I: Iterator<Item = NonZeroU64>>(
+        mut self,
+        mut bitstream: BitEncoder,
+        iter: I,
+    ) -> Result<(), ()> {
+        for item in iter {
+            self.write(&mut bitstream, item).map_err(|_| ())?;
+        }
+        self.write_inf(&mut bitstream);
+        Ok(())
     }
 }
 
