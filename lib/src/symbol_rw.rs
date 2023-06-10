@@ -108,7 +108,7 @@ pub fn encode_c8(numerator: u64, denominator: NonZeroU64) -> Result<u8, u8> {
     }
 }
 
-pub fn decode_c8(bits: &u8) -> (u64, NonZeroU64) {
+pub fn decode_c8(bits: u8) -> (u64, NonZeroU64) {
     decode_stream(&bits.to_be_bytes())
 }
 
@@ -123,7 +123,7 @@ pub fn encode_c16(numerator: u64, denominator: NonZeroU64) -> Result<u16, u16> {
     }
 }
 
-pub fn decode_c16(bits: &u16) -> (u64, NonZeroU64) {
+pub fn decode_c16(bits: u16) -> (u64, NonZeroU64) {
     decode_stream(&bits.to_be_bytes())
 }
 
@@ -138,7 +138,7 @@ pub fn encode_c32(numerator: u64, denominator: NonZeroU64) -> Result<u32, u32> {
     }
 }
 
-pub fn decode_c32(bits: &u32) -> (u64, NonZeroU64) {
+pub fn decode_c32(bits: u32) -> (u64, NonZeroU64) {
     decode_stream(&bits.to_be_bytes())
 }
 
@@ -153,7 +153,7 @@ pub fn encode_c64(numerator: u64, denominator: NonZeroU64) -> Result<u64, u64> {
     }
 }
 
-pub fn decode_c64(bits: &u64) -> (u64, NonZeroU64) {
+pub fn decode_c64(bits: u64) -> (u64, NonZeroU64) {
     decode_stream(&bits.to_be_bytes())
 }
 
@@ -169,7 +169,7 @@ mod tests {
     proptest! {
         #[test]
         fn test_c8_decode_encode_inverse(encoding in u8::MIN..=u8::MAX) {
-            let (numerator, denominator) = decode_c8(&encoding);
+            let (numerator, denominator) = decode_c8(encoding);
             let encoding2 = encode_c8(numerator, denominator).unwrap_or_else(|x| x);
 
             prop_assert_eq!(encoding, encoding2);
@@ -177,7 +177,7 @@ mod tests {
 
         #[test]
         fn test_c16_decode_encode_inverse(encoding in u16::MIN..=u16::MAX) {
-            let (numerator, denominator) = decode_c16(&encoding);
+            let (numerator, denominator) = decode_c16(encoding);
             let encoding2 = encode_c16(numerator, denominator).unwrap_or_else(|x| x);
 
             prop_assert_eq!(encoding, encoding2);
@@ -185,7 +185,7 @@ mod tests {
 
         #[test]
         fn test_c32_decode_encode_inverse(encoding in u32::MIN..=u32::MAX) {
-            let (numerator, denominator) = decode_c32(&encoding);
+            let (numerator, denominator) = decode_c32(encoding);
             let encoding2 = encode_c32(numerator, denominator).unwrap_or_else(|x| x);
 
             prop_assert_eq!(encoding, encoding2);
@@ -193,7 +193,7 @@ mod tests {
 
         #[test]
         fn test_c64_decode_encode_inverse(encoding in u64::MIN..=u64::MAX) {
-            let (numerator, denominator) = decode_c64(&encoding);
+            let (numerator, denominator) = decode_c64(encoding);
             let encoding2 = encode_c64(numerator, denominator).unwrap_or_else(|x| x);
 
             prop_assert_eq!(encoding, encoding2);
@@ -205,7 +205,7 @@ mod tests {
     #[test]
     fn test_decode_c8_uniqueness() {
         let encodings = u8::MIN..=u8::MAX;
-        let mut decodings = encodings.map(|byte| decode_c8(&byte));
+        let mut decodings = encodings.map(|byte| decode_c8(byte));
 
         let mut duplicates = HashSet::new();
         assert!(decodings.all(|decoding| duplicates.insert(decoding)));
@@ -214,7 +214,7 @@ mod tests {
     #[test]
     fn test_decode_c16_uniqueness() {
         let encodings = u16::MIN..=u16::MAX;
-        let mut decodings = encodings.map(|byte| decode_c16(&byte));
+        let mut decodings = encodings.map(|byte| decode_c16(byte));
 
         let mut duplicates = HashSet::new();
         assert!(decodings.all(|decoding| duplicates.insert(decoding)));
