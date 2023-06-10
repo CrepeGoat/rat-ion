@@ -68,7 +68,7 @@ pub fn cf_to_rational64<I: Iterator<Item = NonZeroU64>>(iter_rev: I) -> (u64, No
 }
 
 pub fn encode_c8(numerator: u64, denominator: NonZeroU64) -> Result<u8, u8> {
-    let mut bits: [u8; size_of::<u8>()] = [0];
+    let mut bits: [u8; size_of::<u8>()] = [0; size_of::<u8>()];
     let mut bitstream = BitEncoder::new(&mut bits[..]);
     let mut coder = Coder::default();
     let mut is_truncated: bool = false;
@@ -102,7 +102,7 @@ pub fn decode_c8(bits: &u8) -> (u64, NonZeroU64) {
 }
 
 pub fn encode_c16(numerator: u64, denominator: NonZeroU64) -> Result<u16, u16> {
-    let mut bits: [u8; size_of::<u16>()] = [0, 0];
+    let mut bits: [u8; size_of::<u16>()] = [0; size_of::<u16>()];
     let mut bitstream = BitEncoder::new(&mut bits[..]);
     let mut coder = Coder::default();
     let mut is_truncated: bool = false;
@@ -136,7 +136,7 @@ pub fn decode_c16(bits: &u16) -> (u64, NonZeroU64) {
 }
 
 pub fn encode_c32(numerator: u64, denominator: NonZeroU64) -> Result<u32, u32> {
-    let mut bits: [u8; size_of::<u32>()] = [0, 0, 0, 0];
+    let mut bits: [u8; size_of::<u32>()] = [0; size_of::<u32>()];
     let mut bitstream = BitEncoder::new(&mut bits[..]);
     let mut coder = Coder::default();
     let mut is_truncated: bool = false;
@@ -170,7 +170,7 @@ pub fn decode_c32(bits: &u32) -> (u64, NonZeroU64) {
 }
 
 pub fn encode_c64(numerator: u64, denominator: NonZeroU64) -> Result<u64, u64> {
-    let mut bits: [u8; size_of::<u64>()] = [0, 0, 0, 0, 0, 0, 0, 0];
+    let mut bits: [u8; size_of::<u64>()] = [0; size_of::<u64>()];
     let mut bitstream = BitEncoder::new(&mut bits[..]);
     let mut coder = Coder::default();
     let mut is_truncated: bool = false;
@@ -208,20 +208,46 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
-    use proptest::*;
-    // use rstest::*;
+    use proptest::prelude::*;
 
-    #[test]
-    fn test_c8_decode_encode_inverse() {
-        let encodings: Vec<_> = (u8::MIN..=u8::MAX).collect();
-        let decodings = encodings.iter().map(|&byte| decode_c8(&byte));
-        let encodings2: Vec<_> = decodings
-            .map(|(numerator, denominator)| encode_c8(numerator, denominator).unwrap_or_else(|x| x))
-            .collect();
+    // encoding-decoding inversion - decoding a string and re-encoding it should yield
+    // the original encoding
+    proptest! {
+        #[test]
+        fn test_c8_decode_encode_inverse(encoding in u8::MIN..=u8::MAX) {
+            let (numerator, denominator) = decode_c8(&encoding);
+            let encoding2 = encode_c8(numerator, denominator).unwrap_or_else(|x| x);
 
-        assert_eq!(encodings, encodings2);
+            prop_assert_eq!(encoding, encoding2);
+        }
+
+        #[test]
+        fn test_c16_decode_encode_inverse(encoding in u16::MIN..=u16::MAX) {
+            let (numerator, denominator) = decode_c16(&encoding);
+            let encoding2 = encode_c16(numerator, denominator).unwrap_or_else(|x| x);
+
+            prop_assert_eq!(encoding, encoding2);
+        }
+
+        #[test]
+        fn test_c32_decode_encode_inverse(encoding in u32::MIN..=u32::MAX) {
+            let (numerator, denominator) = decode_c32(&encoding);
+            let encoding2 = encode_c32(numerator, denominator).unwrap_or_else(|x| x);
+
+            prop_assert_eq!(encoding, encoding2);
+        }
+
+        #[test]
+        fn test_c64_decode_encode_inverse(encoding in u64::MIN..=u64::MAX) {
+            let (numerator, denominator) = decode_c64(&encoding);
+            let encoding2 = encode_c64(numerator, denominator).unwrap_or_else(|x| x);
+
+            prop_assert_eq!(encoding, encoding2);
+        }
     }
 
+    // decoding uniqueness - different encodings should yield different decodings
+    // We only check for 8/16 bit sizes due to potential memory limits
     #[test]
     fn test_decode_c8_uniqueness() {
         let encodings = u8::MIN..=u8::MAX;
@@ -229,34 +255,6 @@ mod tests {
 
         let mut duplicates = HashSet::new();
         assert!(decodings.all(|decoding| duplicates.insert(decoding)));
-    }
-
-    #[test]
-    fn test_c8_denominator_11_completeness() {
-        const LARGEST_COVERED_DENOMINATOR: u64 = 11;
-
-        for denom in 1..=LARGEST_COVERED_DENOMINATOR {
-            for numer in 1..denom {
-                if gcd(numer, denom) != 1 {
-                    continue;
-                }
-                assert!(encode_c8(numer, NonZeroU64::new(denom).unwrap()).is_ok());
-            }
-            println!("denominator {:?} covered!", denom);
-        }
-    }
-
-    #[test]
-    fn test_c16_decode_encode_inverse() {
-        let encodings: Vec<_> = (u16::MIN..=u16::MAX).collect();
-        let decodings = encodings.iter().map(|&word| decode_c16(&word));
-        let encodings2: Vec<_> = decodings
-            .map(|(numerator, denominator)| {
-                encode_c16(numerator, denominator).unwrap_or_else(|x| x)
-            })
-            .collect();
-
-        assert_eq!(encodings, encodings2);
     }
 
     #[test]
@@ -268,81 +266,65 @@ mod tests {
         assert!(decodings.all(|decoding| duplicates.insert(decoding)));
     }
 
-    #[test]
-    fn test_c16_denominator_125_completeness() {
-        const LARGEST_COVERED_DENOMINATOR: u64 = 125;
-
-        for denom in 1..=LARGEST_COVERED_DENOMINATOR {
-            for numer in 1..denom {
-                if gcd(numer, denom) != 1 {
-                    continue;
-                }
-                assert!(encode_c16(numer, NonZeroU64::new(denom).unwrap()).is_ok());
-            }
-            println!("denominator {:?} covered!", denom);
-        }
-    }
-
+    // completeness - each encoding size can encode all rational numbers up to some denominator
+    // These tests demonstrate completeness up to some denominator...
     proptest! {
         #[test]
-        fn test_c32_decode_encode_inverse(encoding in u32::MIN..=u32::MAX) {
-            let (numerator, denominator) = decode_c32(&encoding);
-            let encoding2 = encode_c32(numerator, denominator).unwrap_or_else(|x| x);
-
-            assert_eq!(encoding, encoding2);
+        fn test_c8_denominator_11_completeness((numerator, denominator) in rational_numbers(11)) {
+            prop_assume!(gcd(numerator, denominator) == 1);
+            prop_assert!(encode_c8(numerator, NonZeroU64::new(denominator).unwrap()).is_ok());
         }
 
         #[test]
-        fn test_c32_denominator_13859_completeness(denominator in 1_u64..=13859) {
-            for numerator in 1..denominator {
-                if gcd(numerator, denominator) != 1 {
-                    continue;
-                }
-                assert!(encode_c32(numerator, NonZeroU64::new(denominator).unwrap()).is_ok());
-            }
+        fn test_c16_denominator_125_completeness((numerator, denominator) in rational_numbers(125)) {
+            prop_assume!(gcd(numerator, denominator) == 1);
+            prop_assert!(encode_c16(numerator, NonZeroU64::new(denominator).unwrap()).is_ok());
         }
 
         #[test]
-        fn test_c64_decode_encode_inverse(encoding in u64::MIN..=u64::MAX) {
-            let (numerator, denominator) = decode_c64(&encoding);
-            let encoding2 = encode_c64(numerator, denominator).unwrap_or_else(|x| x);
-
-            assert_eq!(encoding, encoding2);
+        fn test_c32_denominator_13859_completeness((numerator, denominator) in rational_numbers(13859)) {
+            prop_assume!(gcd(numerator, denominator) == 1);
+            prop_assert!(encode_c32(numerator, NonZeroU64::new(denominator).unwrap()).is_ok());
         }
     }
 
-    // #[test]
-    // fn test_decode_c32_uniqueness() {
-    //     let encodings = u32::MIN..=u32::MAX;
-    //     let mut decodings = encodings.map(|byte| decode_c32(&byte));
+    prop_compose! {
+        fn rational_numbers(max_denominator: u64)
+                           (denominator in 1_u64..=max_denominator)
+                           (numerator in 0_u64..=denominator, denominator in Just(denominator))
+                           -> (u64, u64) {
+            (numerator, denominator)
+        }
+    }
 
-    //     let mut duplicates = HashSet::new();
-    //     assert!(decodings.all(|decoding| duplicates.insert(decoding)));
-    // }
+    // ...and these tests demonstrate incompleteness at the next higher denominator.
+    #[test]
+    fn test_c8_denominator_12_incomplete() {
+        const DENOMINATOR: u64 = 12;
+        assert!((1..DENOMINATOR)
+            .filter(|numerator| gcd(*numerator, DENOMINATOR) == 1)
+            .any(|numerator| encode_c8(numerator, NonZeroU64::new(DENOMINATOR).unwrap()).is_err()));
+    }
 
-    // #[test]
-    // fn test_decode_c64_uniqueness() {
-    //     let encodings = u64::MIN..=u64::MAX;
-    //     let mut decodings = encodings.map(|byte| decode_c64(&byte));
+    #[test]
+    fn test_c16_denominator_126_incomplete() {
+        const DENOMINATOR: u64 = 126;
+        assert!((1..DENOMINATOR)
+            .filter(|numerator| gcd(*numerator, DENOMINATOR) == 1)
+            .any(
+                |numerator| encode_c16(numerator, NonZeroU64::new(DENOMINATOR).unwrap()).is_err()
+            ));
+    }
 
-    //     let mut duplicates = HashSet::new();
-    //     assert!(decodings.all(|decoding| duplicates.insert(decoding)));
-    // }
-
-    // #[test]
-    // fn test_c64_denominator_n_completeness() {
-    //     const LARGEST_COVERED_DENOMINATOR: u64 = 13859;
-
-    //     for denom in 1..=LARGEST_COVERED_DENOMINATOR {
-    //         for numer in 1..denom {
-    //             if gcd(numer, denom) != 1 {
-    //                 continue;
-    //             }
-    //             assert!(encode_c64(numer, NonZeroU64::new(denom).unwrap()).is_ok());
-    //         }
-    //         println!("denominator {:?} covered!", denom);
-    //     }
-    // }
+    #[test]
+    fn test_c32_denominator_13860_incomplete() {
+        const DENOMINATOR: u64 = 13860;
+        assert!((1..DENOMINATOR)
+            .filter(|numerator| gcd(*numerator, DENOMINATOR) == 1)
+            .any(
+                |numerator| encode_c32(numerator, NonZeroU64::new(DENOMINATOR).unwrap()).is_err()
+            ));
+    }
 
     #[test]
     fn test_gcd() {
@@ -364,16 +346,4 @@ mod tests {
         }
         b
     }
-
-    // #[rstest(seq1, seq2,
-    //     case(vec![], vec![]),
-    // )]
-    // fn test_map_to_complete_cf_uniqueness(
-    //     seq1: Vec<Result<NonZeroU64, IncompleteInt<NonZeroU64>>>,
-    //     seq2: Vec<Result<NonZeroU64, IncompleteInt<NonZeroU64>>>,
-    // ) {
-    //     let result1 = cf_to_rational64(map_to_complete_cf(seq1.into_iter().rev()));
-    //     let result2 = cf_to_rational64(map_to_complete_cf(seq2.into_iter().rev()));
-    //     assert_ne!(result1, result2);
-    // }
 }
