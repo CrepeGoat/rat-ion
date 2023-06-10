@@ -5,21 +5,25 @@ use crate::utils::IncompleteInt;
 use core::num::NonZeroU64;
 use std::mem::size_of;
 
-pub fn map_resolve_incomplete_ints<
+fn map_resolve_incomplete_ints<
     I: Iterator<Item = Result<NonZeroU64, IncompleteInt<NonZeroU64>>>,
 >(
     iter: I,
 ) -> impl Iterator<Item = NonZeroU64> {
-    let mut prev_items: [Option<I::Item>; 2] = [None, None];
+    let mut prev_item: Option<I::Item> = None;
+    let mut _2nd_prev_exists: bool = false;
     iter.filter_map(move |inc_int| {
         let result = match &inc_int {
             &Ok(value) => Some(value),
             Err(IncompleteInt::Unbounded(range)) => {
                 // Each encoding should be unique
                 //   -> change [..., n, 1, inf] to resolve differently from [..., n+1, inf]
-                if prev_items[1] != None
-                    && prev_items[0] == Some(Ok(NonZeroU64::new(1).expect("known to be non-zero")))
+                if _2nd_prev_exists
+                    && prev_item == Some(Ok(NonZeroU64::new(1).expect("known to be non-zero")))
                 {
+                    // Encodings should prefer to first cover all smaller-denominator values
+                    //   -> each ambiguous encoding should have the smallest denominator possible
+                    // https://en.wikipedia.org/wiki/Continued_fraction#Best_rational_within_an_interval
                     Some(NonZeroU64::new(range.start.get() + 1).expect("known to be non-zero"))
                 } else {
                     None
@@ -32,8 +36,8 @@ pub fn map_resolve_incomplete_ints<
                 Some(NonZeroU64::new(range.start().get() + 1).expect("known to be non-zero"))
             }
         };
-        prev_items[1] = prev_items[0].clone();
-        prev_items[0] = Some(inc_int);
+        _2nd_prev_exists = prev_item.is_some();
+        prev_item = Some(inc_int);
         result
     })
 }
