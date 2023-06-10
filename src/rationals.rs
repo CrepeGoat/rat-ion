@@ -5,7 +5,9 @@ use crate::utils::IncompleteInt;
 use core::num::NonZeroU64;
 use std::mem::size_of;
 
-pub fn map_to_complete_cf<I: Iterator<Item = Result<NonZeroU64, IncompleteInt<NonZeroU64>>>>(
+pub fn map_resolve_incomplete_ints<
+    I: Iterator<Item = Result<NonZeroU64, IncompleteInt<NonZeroU64>>>,
+>(
     iter: I,
 ) -> impl Iterator<Item = NonZeroU64> {
     let mut prev_items: [Option<I::Item>; 2] = [None, None];
@@ -36,7 +38,7 @@ pub fn map_to_complete_cf<I: Iterator<Item = Result<NonZeroU64, IncompleteInt<No
     })
 }
 
-pub fn rational64_to_cf(
+pub fn rational64_to_cf_iter(
     mut numerator: u64,
     denominator: NonZeroU64,
 ) -> impl Iterator<Item = NonZeroU64> {
@@ -57,7 +59,7 @@ pub fn rational64_to_cf(
     })
 }
 
-pub fn cf_to_rational64<I: Iterator<Item = NonZeroU64>>(iter_rev: I) -> (u64, NonZeroU64) {
+pub fn cf_iter_to_rational64<I: Iterator<Item = NonZeroU64>>(iter_rev: I) -> (u64, NonZeroU64) {
     let (den, num) = iter_rev.fold((1_u64, 0_u64), |(num, den), item| {
         (item.get() * num + den, num)
     });
@@ -73,7 +75,7 @@ pub fn encode_c8(numerator: u64, denominator: NonZeroU64) -> Result<u8, u8> {
     let mut coder = Coder::default();
     let mut is_truncated: bool = false;
 
-    for value in rational64_to_cf(numerator, denominator) {
+    for value in rational64_to_cf_iter(numerator, denominator) {
         if coder.write(&mut bitstream, value).is_err() {
             is_truncated = true;
             break;
@@ -93,8 +95,8 @@ pub fn decode_c8(bits: &u8) -> (u64, NonZeroU64) {
     let bits = bits.to_be_bytes();
     let bitstream = BitDecoder::new(&bits[..]);
     let coder = Coder::default();
-    cf_to_rational64(
-        map_to_complete_cf(coder.read_iter(bitstream))
+    cf_iter_to_rational64(
+        map_resolve_incomplete_ints(coder.read_iter(bitstream))
             .collect::<Vec<_>>()
             .into_iter()
             .rev(),
@@ -107,7 +109,7 @@ pub fn encode_c16(numerator: u64, denominator: NonZeroU64) -> Result<u16, u16> {
     let mut coder = Coder::default();
     let mut is_truncated: bool = false;
 
-    for value in rational64_to_cf(numerator, denominator) {
+    for value in rational64_to_cf_iter(numerator, denominator) {
         if coder.write(&mut bitstream, value).is_err() {
             is_truncated = true;
             break;
@@ -127,8 +129,8 @@ pub fn decode_c16(bits: &u16) -> (u64, NonZeroU64) {
     let bits = bits.to_be_bytes();
     let bitstream = BitDecoder::new(&bits[..]);
     let coder = Coder::default();
-    cf_to_rational64(
-        map_to_complete_cf(coder.read_iter(bitstream))
+    cf_iter_to_rational64(
+        map_resolve_incomplete_ints(coder.read_iter(bitstream))
             .collect::<Vec<_>>()
             .into_iter()
             .rev(),
@@ -141,7 +143,7 @@ pub fn encode_c32(numerator: u64, denominator: NonZeroU64) -> Result<u32, u32> {
     let mut coder = Coder::default();
     let mut is_truncated: bool = false;
 
-    for value in rational64_to_cf(numerator, denominator) {
+    for value in rational64_to_cf_iter(numerator, denominator) {
         if coder.write(&mut bitstream, value).is_err() {
             is_truncated = true;
             break;
@@ -161,8 +163,8 @@ pub fn decode_c32(bits: &u32) -> (u64, NonZeroU64) {
     let bits = bits.to_be_bytes();
     let bitstream = BitDecoder::new(&bits[..]);
     let coder = Coder::default();
-    cf_to_rational64(
-        map_to_complete_cf(coder.read_iter(bitstream))
+    cf_iter_to_rational64(
+        map_resolve_incomplete_ints(coder.read_iter(bitstream))
             .collect::<Vec<_>>()
             .into_iter()
             .rev(),
@@ -175,7 +177,7 @@ pub fn encode_c64(numerator: u64, denominator: NonZeroU64) -> Result<u64, u64> {
     let mut coder = Coder::default();
     let mut is_truncated: bool = false;
 
-    for value in rational64_to_cf(numerator, denominator) {
+    for value in rational64_to_cf_iter(numerator, denominator) {
         if coder.write(&mut bitstream, value).is_err() {
             is_truncated = true;
             break;
@@ -195,8 +197,8 @@ pub fn decode_c64(bits: &u64) -> (u64, NonZeroU64) {
     let bits = bits.to_be_bytes();
     let bitstream = BitDecoder::new(&bits[..]);
     let coder = Coder::default();
-    cf_to_rational64(
-        map_to_complete_cf(coder.read_iter(bitstream))
+    cf_iter_to_rational64(
+        map_resolve_incomplete_ints(coder.read_iter(bitstream))
             .collect::<Vec<_>>()
             .into_iter()
             .rev(),
