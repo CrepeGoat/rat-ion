@@ -1,6 +1,6 @@
-use crate::bitslice::{BitDecoder, BitEncoder};
-use crate::utils::IncompleteInt;
-use crate::{sbs1, sbs2};
+use super::{sbs1, sbs2};
+use crate::bitstream::{BitDecoder, BitEncoder};
+use crate::symbol_defs::IncompleteInt;
 
 use core::num::NonZeroU64;
 
@@ -120,7 +120,7 @@ impl Coder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bitslice::{BitDecoder, BitEncoder};
+    use crate::bitstream::{BitDecoder, BitEncoder};
     use rstest::*;
 
     #[rstest(parser_state, stream, expt_mode,

@@ -1,5 +1,5 @@
-use crate::bitslice::{BitDecoder, BitEncoder};
-use crate::utils::IncompleteInt;
+use crate::bitstream::{BitDecoder, BitEncoder};
+use crate::symbol_defs::IncompleteInt;
 
 use core::num::{NonZeroU64, NonZeroUsize};
 use core::ops::{RangeFrom, RangeInclusive};

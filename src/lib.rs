@@ -1,12 +1,7 @@
-mod bitslice;
-mod masked_bits;
-mod sbs1;
-mod sbs2;
-pub mod sbs_main;
-mod sbs_utils;
-mod utils;
-
-pub mod rationals;
+mod bitstream;
+mod symbol_defs;
+pub mod symbol_rw;
+mod symbolstream;
 
 #[cfg(test)]
 mod tests {

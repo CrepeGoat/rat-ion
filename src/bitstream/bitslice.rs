@@ -1,6 +1,6 @@
 use std::num::NonZeroUsize;
 
-use crate::masked_bits::MaskedBits;
+use super::masked_bits::MaskedBits;
 
 #[inline(always)]
 const fn masked_bit(bits: u8, index: u32) -> bool {

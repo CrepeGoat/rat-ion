@@ -1,6 +1,6 @@
-use crate::bitslice::{BitDecoder, BitEncoder};
-use crate::sbs_main::Coder;
-use crate::utils::IncompleteInt;
+use crate::bitstream::{BitDecoder, BitEncoder};
+use crate::symbol_defs::IncompleteInt;
+use crate::symbolstream::Coder;
 
 use core::num::NonZeroU64;
 use std::mem::size_of;

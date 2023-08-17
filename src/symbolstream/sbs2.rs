@@ -1,11 +1,11 @@
-use crate::sbs_utils;
-use crate::utils::IncompleteInt;
+use super::sbs_utils;
+use crate::symbol_defs::IncompleteInt;
 
 use core::num::{NonZeroU64, NonZeroUsize};
 
 pub(crate) mod encode {
     use super::*;
-    use crate::bitslice::BitEncoder;
+    use crate::bitstream::BitEncoder;
 
     pub(crate) fn write(
         bitstream: &mut BitEncoder,
@@ -29,13 +29,13 @@ pub(crate) mod encode {
         }
     }
 
-    pub use crate::sbs_utils::encode::write_inf;
+    pub use crate::symbolstream::sbs_utils::encode::write_inf;
 }
 
 pub(crate) mod decode {
 
     use super::*;
-    use crate::bitslice::BitDecoder;
+    use crate::bitstream::BitDecoder;
 
     pub(crate) fn read(
         bitstream: &mut BitDecoder,
@@ -63,7 +63,7 @@ pub(crate) mod decode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bitslice::{BitDecoder, BitEncoder};
+    use crate::bitstream::{BitDecoder, BitEncoder};
     use rstest::*;
 
     #[rstest(stream, expt_result,
