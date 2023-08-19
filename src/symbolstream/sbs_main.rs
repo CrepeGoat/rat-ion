@@ -54,13 +54,13 @@ impl Coder {
         bitstream: &mut BitEncoder,
         value: NonZeroU64,
     ) -> Result<(), IncompleteInt<NonZeroU64>> {
-        let result = match self.0.which() {
+        match self.0.which() {
             SbsMarker::Mode1 => sbs1::encode::write(bitstream, value),
             SbsMarker::Mode2 => sbs2::encode::write(bitstream, value),
         }?;
         self.0 = self.0.next(value);
 
-        Ok(result)
+        Ok(())
     }
 
     pub fn write_inf(&mut self, bitstream: &mut BitEncoder) -> IncompleteInt<NonZeroU64> {

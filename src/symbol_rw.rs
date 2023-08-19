@@ -54,7 +54,7 @@ pub fn rational64_to_cf_iter(
         );
     }
     std::iter::from_fn(move || {
-        if numerator <= 0 {
+        if numerator == 0 {
             return None;
         }
         let next_value = NonZeroU64::new(denominator / numerator).expect("checked that den > num");
@@ -67,14 +67,11 @@ pub fn cf_iter_to_rational64<I: Iterator<Item = NonZeroU64>>(iter_rev: I) -> (u6
     let (den, num) = iter_rev.fold((1_u64, 0_u64), |(num, den), item| {
         (item.get() * num + den, num)
     });
-    (
-        num,
-        NonZeroU64::new(den as u64).expect("starts at 1 & increases"),
-    )
+    (num, NonZeroU64::new(den).expect("starts at 1 & increases"))
 }
 
-pub fn encode_stream(numerator: u64, denominator: NonZeroU64, mut bits: &mut [u8]) -> bool {
-    let mut bitstream = BitEncoder::new(&mut bits);
+pub fn encode_stream(numerator: u64, denominator: NonZeroU64, bits: &mut [u8]) -> bool {
+    let mut bitstream = BitEncoder::new(bits);
     let mut coder = Coder::default();
     let mut is_truncated: bool = false;
 
@@ -86,11 +83,11 @@ pub fn encode_stream(numerator: u64, denominator: NonZeroU64, mut bits: &mut [u8
     }
     coder.write_inf(&mut bitstream);
 
-    return !is_truncated;
+    !is_truncated
 }
 
 pub fn decode_stream(bits: &[u8]) -> (u64, NonZeroU64) {
-    let bitstream = BitDecoder::new(&bits[..]);
+    let bitstream = BitDecoder::new(bits);
     let coder = Coder::default();
     cf_iter_to_rational64(
         map_resolve_incomplete_ints(coder.read_iter(bitstream))

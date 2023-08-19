@@ -207,22 +207,22 @@ impl<U: Borrow<u8>> MaskedBits<U> {
 
     pub fn leading_zeros(&self) -> u32 {
         ((self.data.borrow() & self.mask_left()) | !self.mask_right()).leading_zeros()
-            - (self.left_margin as u32)
+            - self.left_margin
     }
 
     pub fn leading_ones(&self) -> u32 {
         ((self.data.borrow() | !self.mask_left()) & self.mask_right()).leading_ones()
-            - (self.left_margin as u32)
+            - self.left_margin
     }
 
     pub fn trailing_zeros(&self) -> u32 {
         ((self.data.borrow() & self.mask_right()) | !self.mask_left()).trailing_zeros()
-            - (self.right_margin as u32)
+            - self.right_margin
     }
 
     pub fn trailing_ones(&self) -> u32 {
         ((self.data.borrow() | !self.mask_right()) & self.mask_left()).trailing_ones()
-            - (self.right_margin as u32)
+            - self.right_margin
     }
 }
 
